@@ -1,0 +1,23 @@
+# --- Árboles upstream (material de referencia, NO se versionan) ---------------
+# Son ~2 GB de código ajeno. Se reconstruyen pinneados a un commit exacto con:
+#     ./fetch-upstream.sh          (Linux / macOS / Git Bash)
+#     .\fetch-upstream.ps1         (Windows)
+# Los SHA congelados y las rutas usadas están en UPSTREAM.md.
+openbsd-src/
+busybox-src/
+
+# --- Salida de compilación ----------------------------------------------------
+build/
+_build.old/
+out/
+ports/bin/
+
+# --- Artefactos de objeto sueltos --------------------------------------------
+*.obj
+*.o
+*.exe
+*.pdb
+*.ilk
+
+# --- Basura temporal del test suite ------------------------------------------
+tests/tmp/
