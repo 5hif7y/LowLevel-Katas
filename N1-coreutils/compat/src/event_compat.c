@@ -1,3 +1,8 @@
+/* Windows has no kqueue(2).  This is a deliberately conservative polling
+ * stand-in, not a real event API: it keeps tail(1) responsive by sleeping
+ * between checks, but it cannot report NOTE_WRITE/NOTE_DELETE/NOTE_RENAME.
+ * A real implementation would need ReadDirectoryChangesW, WaitForMultipleObjects
+ * or overlapped I/O.  See Docs/porter-guide/09-... and 11-... . */
 #include <sys/event.h>
 #include <windows.h>
 #include <errno.h>
