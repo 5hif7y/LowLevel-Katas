@@ -15,15 +15,11 @@ if(MSVC)
         /utf-8
         /D_CRT_SECURE_NO_WARNINGS
         /D_CRT_NONSTDC_NO_DEPRECATE
-        /FI "${CMAKE_CURRENT_SOURCE_DIR}/compat/include/compat.h"
     )
 endif()
 
-# Global include directories
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/compat/include
-    "C:/Users/Shifty/DEV/vcpkg/installed/x64-windows/include"
-)
+# dirent is vendored under compat/include (MIT, tronkko/dirent), so no
+# vcpkg dependency is required for the coreutils build.
 
 # bsd_compat: OBJECT library, deliberadamente NO una biblioteca estática.
 #
@@ -37,7 +33,17 @@ include_directories(
 # Como OBJECT library los objetos se enlazan siempre, sin lógica de descarte.
 file(GLOB COMPAT_SOURCES "compat/src/*.c")
 add_library(bsd_compat OBJECT ${COMPAT_SOURCES})
+target_include_directories(bsd_compat PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/compat/include
+)
 target_link_libraries(bsd_compat PUBLIC advapi32)
+if(MSVC)
+    # Forced include for the compatibility header. Keep it on the OBJECT
+    # library so every executable that links bsd_compat inherits it.
+    target_compile_options(bsd_compat PUBLIC
+        /FI${CMAKE_CURRENT_SOURCE_DIR}/compat/include/compat.h
+    )
+endif()
 
 # Helper macro for standard single-file utilities
 function(add_bsd_tool tool_name source_path)
