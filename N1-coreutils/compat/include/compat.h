@@ -80,10 +80,9 @@ mode_t bsd_getmode(const void *set, mode_t mode);
 #define getmode bsd_getmode
 __END_DECLS
 
-/* Fallback for st_blksize which is absent in MSVC struct _stat */
-#ifndef st_blksize
-#define st_blksize st_rdev
-#endif
+/* Do not alias st_blksize to st_rdev: bsd_stat provides a real st_blksize
+ * field and _stat64 fills the real value.  The old alias made stat_compat.c
+ * overwrite st_rdev and made cat/ls read the device number as a block size. */
 
 /* Fallback for O_BINARY on POSIX-oriented code */
 #ifndef O_BINARY

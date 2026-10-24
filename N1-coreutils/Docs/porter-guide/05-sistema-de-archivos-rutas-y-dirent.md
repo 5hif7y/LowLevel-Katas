@@ -118,3 +118,103 @@ int futimens(int fd, const struct timespec times[2]) {
 }
 ```
 Esto permite a `touch.exe` crear archivos y actualizar marcas de tiempo de modificación y acceso con total precisión en NTFS.
+
+---
+
+## 5. `stat` de 64 bits y el límite de 2 GB
+
+En el port original, `compat/src/stat_compat.c` usaba:
+
+```c
+struct _stat64i32 s;
+_stat64i32(path, &s);
+```
+
+`_stat64i32` tiene tamaño de archivo de **32 bits**. En Windows x64 eso implica
+que cualquier archivo de más de 2 GB se reporta truncado. Para coreutils
+pequeños puede pasar desapercibido; para `cp`, `tar`, `rsync`, `dd` o un
+backup es un bug grave.
+
+La versión correcta usa `_stat64` / `_fstat64`:
+
+```c
+int bsd_stat(const char *path, struct bsd_stat *sb)
+{
+    struct _stat64 s;
+    if (_stat64(path, &s) != 0)
+        return -1;
+
+    sb->st_dev     = s.st_dev;
+    sb->st_ino     = s.st_ino;
+    sb->st_mode    = s.st_mode;
+    sb->st_nlink   = s.st_nlink;
+    sb->st_uid     = s.st_uid;
+    sb->st_gid     = s.st_gid;
+    sb->st_rdev    = s.st_rdev;
+    sb->st_size    = s.st_size;   /* 64 bits */
+    sb->st_atim.tv_sec = s.st_atime;
+    sb->st_mtim.tv_sec = s.st_mtime;
+    sb->st_ctim.tv_sec = s.st_ctime;
+    sb->st_blksize = 4096;
+    sb->st_blocks  = (s.st_size + 511) / 512;
+    return 0;
+}
+```
+
+Además:
+
+- `st_uid`/`st_gid` deben ser `uid_t`/`gid_t` (32 bits). El `struct bsd_stat`
+  original usaba `short`, que trunca IDs > 32767. En Windows los IDs son
+  simulados, pero un port como rsync igual necesita el ancho completo.
+- **No** definas `#define st_blksize st_rdev`. Ese alias hacía que
+  `stat_compat.c` escribiera `st_rdev = 4096` y que `cat`/`ls` leyeran el
+  número de dispositivo como tamaño de bloque. `struct bsd_stat` ya tiene un
+  campo `st_blksize` real; usalo.
+- Para nombres Unicode, la variante correcta es `_wstat64` con conversión
+  UTF-8/UTF-16. `_stat64` usa la code page ANSI.
+
+## 6. Namespace virtual de paths
+
+No alcanza con aceptar `/` y `\` en `basename`/`dirname`. Las herramientas que
+parsean `host:path` (rsync, scp, git, curl) necesitan que `C:\dir` no se
+interprete como el host `C`.
+
+La solución que funcionó en rsync es un **namespace virtual**:
+
+```text
+C:\Users\me\site      ->  /c/Users/me/site
+C:/Users/me/site/     ->  /c/Users/me/site/
+\\server\share\site   ->  /unc/server/share/site
+~\site                ->  /c/Users/me/site
+site\assets           ->  site/assets
+```
+
+Reglas:
+
+1. Normalizar los argumentos **locales** antes de cualquier parser de
+   `host:path`.
+2. Detectar primero una ruta Windows (`X:`, `\\`, `/`), no un host.
+3. No tocar los argumentos remotos: `user@vps:/var/www/` sigue siendo POSIX.
+4. `getcwd()` devuelve el path virtual; `chdir()` y `stat()` lo traducen de
+   vuelta a Win32.
+5. Un path absoluto POSIX que no sea `/c/...` se puede mapear al drive actual
+   (`/tmp` -> `C:\tmp`) para no romper herramientas que asumen `/`.
+
+El detalle completo está en el [módulo 12](12-paths-argv-y-unicode.md).
+
+## 7. Long paths, nombres reservados y Unicode
+
+Windows tiene reglas que Unix no:
+
+- `MAX_PATH` (260) por defecto. Para más, manifest `longPathAware` y prefijo
+  `\\?\` (o `\\?\UNC\` para UNC).
+- Nombres reservados: `CON`, `PRN`, `AUX`, `NUL`, `COM1`..`COM9`, `LPT1`..`LPT9`.
+- No se permiten `\ / : * ? " < > |` en nombres.
+- Los nombres no pueden terminar en punto o espacio.
+- NTFS es *case-preserving* pero *case-insensitive*; dos archivos que sólo
+  difieren en mayúsculas colisionan.
+- Alternate Data Streams (`archivo:stream`) no existen en POSIX.
+
+Para Unicode: elegí una política explícita (`CP_UTF8` o `CP_ACP`) y usá APIs
+wide (`_wopen`, `_wstat64`, `_wmkdir`, `_wunlink`, `_wrename`, `_wopendir`) en
+lugar de mezclar ANSI y UTF-8. `dirent` de tronkko tiene variantes `_w...`.
