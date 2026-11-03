@@ -9,8 +9,8 @@
 int
 bsd_stat(const char *path, struct bsd_stat *sb)
 {
-    struct _stat64i32 s;
-    if (_stat64i32(path, &s) != 0)
+    struct _stat64 s;
+    if (_stat64(path, &s) != 0)
         return -1;
 
     sb->st_dev = s.st_dev;
@@ -35,8 +35,8 @@ bsd_stat(const char *path, struct bsd_stat *sb)
 int
 bsd_fstat(int fd, struct bsd_stat *sb)
 {
-    struct _stat64i32 s;
-    if (_fstat64i32(fd, &s) != 0)
+    struct _stat64 s;
+    if (_fstat64(fd, &s) != 0)
         return -1;
 
     sb->st_dev = s.st_dev;

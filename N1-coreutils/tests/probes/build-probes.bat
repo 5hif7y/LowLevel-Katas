@@ -9,13 +9,12 @@ REM
 REM Ver Docs/porter-guide/10-* para el detalle de cada una.
 REM
 REM Uso:  build-probes.bat
-REM       (requiere el entorno de MSVC ya cargado; build.bat lo hace vía devmode.bat)
+REM       (requiere el entorno de MSVC ya cargado; build.bat lo hace vía DEVMODE o vswhere)
 
 setlocal
 cd /d "%~dp0"
 
-set DEV=C:\Workbench\PKGMGR\bin\devmode.bat
-if exist "%DEV%" call "%DEV%" >nul 2>&1
+if defined DEVMODE call "%DEVMODE%" >nul 2>&1
 
 set ROOT=%~dp0..\..
 set INC=%ROOT%\compat\include

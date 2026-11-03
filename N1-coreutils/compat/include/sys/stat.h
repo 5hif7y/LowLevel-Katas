@@ -101,9 +101,9 @@ struct bsd_stat {
     dev_t st_dev;
     ino_t st_ino;
     unsigned short st_mode;
-    short st_nlink;
-    short st_uid;
-    short st_gid;
+    nlink_t st_nlink;
+    uid_t st_uid;
+    gid_t st_gid;
     dev_t st_rdev;
     int64_t st_size;
     struct timespec st_atim;

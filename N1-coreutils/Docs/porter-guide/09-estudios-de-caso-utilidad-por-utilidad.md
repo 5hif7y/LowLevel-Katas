@@ -138,3 +138,21 @@ touch.exe    (17.9 KB)   tr.exe       (17.9 KB)   true.exe     ( 9.7 KB)
 uniq.exe     (15.8 KB)   wc.exe       (16.8 KB)   yes.exe      (10.7 KB)
 ```
 *Total combinado de las 21 utilidades: ~310 KB.*
+
+---
+
+## Nota sobre `tail -f`: el stub de `kqueue` no es un `kqueue`
+
+`compat/src/event_compat.c` implementa `kqueue()` devolviendo un valor fijo y
+`kevent()` durmiendo entre llamadas. Eso alcanza para que `tail -f` no se
+coma la CPU, pero **no** reproduce la semántica de eventos de BSD:
+
+- no hay `NOTE_WRITE`, `NOTE_DELETE`, `NOTE_RENAME` ni `NOTE_ATTRIB`;
+- no hay registro por archivo ni `udata`;
+- `kevent()` devuelve 0 sin eventos, así que el consumidor depende de volver a
+  preguntar.
+
+Para un `tail -f` de verdad en Windows hay que usar `ReadDirectoryChangesW`
+(para el directorio) o `WaitForMultipleObjects`/overlapped I/O sobre el
+archivo. Si el objetivo es sólo “no bloquear”, el stub actual es aceptable,
+pero conviene documentarlo como **polling**, no como `kqueue`.
