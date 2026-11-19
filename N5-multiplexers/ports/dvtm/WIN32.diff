@@ -1,0 +1,577 @@
+diff --git a/upstream/dvtm/config.def.h b/ports/dvtm/config.def.h
+index 513c734..ce4af08 100644
+--- a/upstream/dvtm/config.def.h
++++ b/ports/dvtm/config.def.h
+@@ -206,4 +206,5 @@ static Action actions[] = {
+ 
+ static char const * const keytable[] = {
+ 	/* add your custom key escape sequences */
++	NULL, /* WIN32: C11 forbids an empty initializer list */
+ };
+diff --git a/ports/dvtm/config.h b/ports/dvtm/config.h
+new file mode 100644
+index 0000000..ce4af08
+--- /dev/null
++++ b/ports/dvtm/config.h
+@@ -0,0 +1,210 @@
++/* valid curses attributes are listed below they can be ORed
++ *
++ * A_NORMAL        Normal display (no highlight)
++ * A_STANDOUT      Best highlighting mode of the terminal.
++ * A_UNDERLINE     Underlining
++ * A_REVERSE       Reverse video
++ * A_BLINK         Blinking
++ * A_DIM           Half bright
++ * A_BOLD          Extra bright or bold
++ * A_PROTECT       Protected mode
++ * A_INVIS         Invisible or blank mode
++ */
++
++enum {
++	DEFAULT,
++	BLUE,
++};
++
++static Color colors[] = {
++	[DEFAULT] = { .fg = -1,         .bg = -1, .fg256 = -1, .bg256 = -1, },
++	[BLUE]    = { .fg = COLOR_BLUE, .bg = -1, .fg256 = 68, .bg256 = -1, },
++};
++
++#define COLOR(c)        COLOR_PAIR(colors[c].pair)
++/* curses attributes for the currently focused window */
++#define SELECTED_ATTR   (COLOR(BLUE) | A_NORMAL)
++/* curses attributes for normal (not selected) windows */
++#define NORMAL_ATTR     (COLOR(DEFAULT) | A_NORMAL)
++/* curses attributes for a window with pending urgent flag */
++#define URGENT_ATTR     NORMAL_ATTR
++/* curses attributes for the status bar */
++#define BAR_ATTR        (COLOR(BLUE) | A_NORMAL)
++/* characters for beginning and end of status bar message */
++#define BAR_BEGIN       '['
++#define BAR_END         ']'
++/* status bar (command line option -s) position */
++#define BAR_POS         BAR_TOP /* BAR_BOTTOM, BAR_OFF */
++/* whether status bar should be hidden if only one client exists */
++#define BAR_AUTOHIDE    true
++/* master width factor [0.1 .. 0.9] */
++#define MFACT 0.5
++/* number of clients in master area */
++#define NMASTER 1
++/* scroll back buffer size in lines */
++#define SCROLL_HISTORY 500
++/* printf format string for the tag in the status bar */
++#define TAG_SYMBOL   "[%s]"
++/* curses attributes for the currently selected tags */
++#define TAG_SEL      (COLOR(BLUE) | A_BOLD)
++/* curses attributes for not selected tags which contain no windows */
++#define TAG_NORMAL   (COLOR(DEFAULT) | A_NORMAL)
++/* curses attributes for not selected tags which contain windows */
++#define TAG_OCCUPIED (COLOR(BLUE) | A_NORMAL)
++/* curses attributes for not selected tags which with urgent windows */
++#define TAG_URGENT (COLOR(BLUE) | A_NORMAL | A_BLINK)
++
++const char tags[][8] = { "1", "2", "3", "4", "5" };
++
++#include "tile.c"
++#include "grid.c"
++#include "bstack.c"
++#include "fullscreen.c"
++
++/* by default the first layout entry is used */
++static Layout layouts[] = {
++	{ "[]=", tile },
++	{ "+++", grid },
++	{ "TTT", bstack },
++	{ "[ ]", fullscreen },
++};
++
++#define MOD  CTRL('g')
++#define TAGKEYS(KEY,TAG) \
++	{ { MOD, 'v', KEY,     }, { view,           { tags[TAG] }               } }, \
++	{ { MOD, 't', KEY,     }, { tag,            { tags[TAG] }               } }, \
++	{ { MOD, 'V', KEY,     }, { toggleview,     { tags[TAG] }               } }, \
++	{ { MOD, 'T', KEY,     }, { toggletag,      { tags[TAG] }               } },
++
++/* you can specifiy at most 3 arguments */
++static KeyBinding bindings[] = {
++	{ { MOD, 'c',          }, { create,         { NULL }                    } },
++	{ { MOD, 'C',          }, { create,         { NULL, NULL, "$CWD" }      } },
++	{ { MOD, 'x', 'x',     }, { killclient,     { NULL }                    } },
++	{ { MOD, 'j',          }, { focusnext,      { NULL }                    } },
++	{ { MOD, 'J',          }, { focusdown,      { NULL }                    } },
++	{ { MOD, 'K',          }, { focusup,        { NULL }                    } },
++	{ { MOD, 'H',          }, { focusleft,      { NULL }                    } },
++	{ { MOD, 'L',          }, { focusright,     { NULL }                    } },
++	{ { MOD, 'k',          }, { focusprev,      { NULL }                    } },
++	{ { MOD, 'f',          }, { setlayout,      { "[]=" }                   } },
++	{ { MOD, 'g',          }, { setlayout,      { "+++" }                   } },
++	{ { MOD, 'b',          }, { setlayout,      { "TTT" }                   } },
++	{ { MOD, 'm',          }, { setlayout,      { "[ ]" }                   } },
++	{ { MOD, ' ',          }, { setlayout,      { NULL }                    } },
++	{ { MOD, 'i',          }, { incnmaster,     { "+1" }                    } },
++	{ { MOD, 'd',          }, { incnmaster,     { "-1" }                    } },
++	{ { MOD, 'h',          }, { setmfact,       { "-0.05" }                 } },
++	{ { MOD, 'l',          }, { setmfact,       { "+0.05" }                 } },
++	{ { MOD, '.',          }, { toggleminimize, { NULL }                    } },
++	{ { MOD, 's',          }, { togglebar,      { NULL }                    } },
++	{ { MOD, 'S',          }, { togglebarpos,   { NULL }                    } },
++	{ { MOD, 'M',          }, { togglemouse,    { NULL }                    } },
++	{ { MOD, '\n',         }, { zoom ,          { NULL }                    } },
++	{ { MOD, '\r',         }, { zoom ,          { NULL }                    } },
++	{ { MOD, '1',          }, { focusn,         { "1" }                     } },
++	{ { MOD, '2',          }, { focusn,         { "2" }                     } },
++	{ { MOD, '3',          }, { focusn,         { "3" }                     } },
++	{ { MOD, '4',          }, { focusn,         { "4" }                     } },
++	{ { MOD, '5',          }, { focusn,         { "5" }                     } },
++	{ { MOD, '6',          }, { focusn,         { "6" }                     } },
++	{ { MOD, '7',          }, { focusn,         { "7" }                     } },
++	{ { MOD, '8',          }, { focusn,         { "8" }                     } },
++	{ { MOD, '9',          }, { focusn,         { "9" }                     } },
++	{ { MOD, '\t',         }, { focuslast,      { NULL }                    } },
++	{ { MOD, 'q', 'q',     }, { quit,           { NULL }                    } },
++	{ { MOD, 'a',          }, { togglerunall,   { NULL }                    } },
++	{ { MOD, CTRL('L'),    }, { redraw,         { NULL }                    } },
++	{ { MOD, 'r',          }, { redraw,         { NULL }                    } },
++	{ { MOD, 'e',          }, { copymode,       { "dvtm-editor" }           } },
++	{ { MOD, 'E',          }, { copymode,       { "dvtm-pager" }            } },
++	{ { MOD, '/',          }, { copymode,       { "dvtm-pager", "/" }       } },
++	{ { MOD, 'p',          }, { paste,          { NULL }                    } },
++	{ { MOD, KEY_PPAGE,    }, { scrollback,     { "-1" }                    } },
++	{ { MOD, KEY_NPAGE,    }, { scrollback,     { "1"  }                    } },
++	{ { MOD, '?',          }, { create,         { "man dvtm", "dvtm help" } } },
++	{ { MOD, MOD,          }, { send,           { (const char []){MOD, 0} } } },
++	{ { KEY_SPREVIOUS,     }, { scrollback,     { "-1" }                    } },
++	{ { KEY_SNEXT,         }, { scrollback,     { "1"  }                    } },
++	{ { MOD, '0',          }, { view,           { NULL }                    } },
++	{ { MOD, KEY_F(1),     }, { view,           { tags[0] }                 } },
++	{ { MOD, KEY_F(2),     }, { view,           { tags[1] }                 } },
++	{ { MOD, KEY_F(3),     }, { view,           { tags[2] }                 } },
++	{ { MOD, KEY_F(4),     }, { view,           { tags[3] }                 } },
++	{ { MOD, KEY_F(5),     }, { view,           { tags[4] }                 } },
++	{ { MOD, 'v', '0'      }, { view,           { NULL }                    } },
++	{ { MOD, 'v', '\t',    }, { viewprevtag,    { NULL }                    } },
++	{ { MOD, 't', '0'      }, { tag,            { NULL }                    } },
++	TAGKEYS( '1',                              0)
++	TAGKEYS( '2',                              1)
++	TAGKEYS( '3',                              2)
++	TAGKEYS( '4',                              3)
++	TAGKEYS( '5',                              4)
++};
++
++static const ColorRule colorrules[] = {
++	{ "", A_NORMAL, &colors[DEFAULT] }, /* default */
++};
++
++/* possible values for the mouse buttons are listed below:
++ *
++ * BUTTON1_PRESSED          mouse button 1 down
++ * BUTTON1_RELEASED         mouse button 1 up
++ * BUTTON1_CLICKED          mouse button 1 clicked
++ * BUTTON1_DOUBLE_CLICKED   mouse button 1 double clicked
++ * BUTTON1_TRIPLE_CLICKED   mouse button 1 triple clicked
++ * BUTTON2_PRESSED          mouse button 2 down
++ * BUTTON2_RELEASED         mouse button 2 up
++ * BUTTON2_CLICKED          mouse button 2 clicked
++ * BUTTON2_DOUBLE_CLICKED   mouse button 2 double clicked
++ * BUTTON2_TRIPLE_CLICKED   mouse button 2 triple clicked
++ * BUTTON3_PRESSED          mouse button 3 down
++ * BUTTON3_RELEASED         mouse button 3 up
++ * BUTTON3_CLICKED          mouse button 3 clicked
++ * BUTTON3_DOUBLE_CLICKED   mouse button 3 double clicked
++ * BUTTON3_TRIPLE_CLICKED   mouse button 3 triple clicked
++ * BUTTON4_PRESSED          mouse button 4 down
++ * BUTTON4_RELEASED         mouse button 4 up
++ * BUTTON4_CLICKED          mouse button 4 clicked
++ * BUTTON4_DOUBLE_CLICKED   mouse button 4 double clicked
++ * BUTTON4_TRIPLE_CLICKED   mouse button 4 triple clicked
++ * BUTTON_SHIFT             shift was down during button state change
++ * BUTTON_CTRL              control was down during button state change
++ * BUTTON_ALT               alt was down during button state change
++ * ALL_MOUSE_EVENTS         report all button state changes
++ * REPORT_MOUSE_POSITION    report mouse movement
++ */
++
++#ifdef NCURSES_MOUSE_VERSION
++# define CONFIG_MOUSE /* compile in mouse support if we build against ncurses */
++#endif
++
++#define ENABLE_MOUSE true /* whether to enable mouse events by default */
++
++#ifdef CONFIG_MOUSE
++static Button buttons[] = {
++	{ BUTTON1_CLICKED,        { mouse_focus,      { NULL  } } },
++	{ BUTTON1_DOUBLE_CLICKED, { mouse_fullscreen, { "[ ]" } } },
++	{ BUTTON2_CLICKED,        { mouse_zoom,       { NULL  } } },
++	{ BUTTON3_CLICKED,        { mouse_minimize,   { NULL  } } },
++};
++#endif /* CONFIG_MOUSE */
++
++static Cmd commands[] = {
++	/* create [cmd]: create a new window, run `cmd` in the shell if specified */
++	{ "create", { create,	{ NULL } } },
++	/* focus <win_id>: focus the window whose `DVTM_WINDOW_ID` is `win_id` */
++	{ "focus",  { focusid,	{ NULL } } },
++	/* tag <win_id> <tag> [tag ...]: add +tag, remove -tag or set tag of the window with the given identifier */
++	{ "tag",    { tagid,	{ NULL } } },
++};
++
++/* gets executed when dvtm is started */
++static Action actions[] = {
++	{ create, { NULL } },
++};
++
++static char const * const keytable[] = {
++	/* add your custom key escape sequences */
++	NULL, /* WIN32: C11 forbids an empty initializer list */
++};
+diff --git a/upstream/dvtm/dvtm.c b/ports/dvtm/dvtm.c
+index 8382c83..db4e88b 100644
+--- a/upstream/dvtm/dvtm.c
++++ b/ports/dvtm/dvtm.c
+@@ -40,6 +40,7 @@
+ 
+ #ifdef PDCURSES
+ int ESCDELAY;
++# define resizeterm resize_term /* ncurses extension; PDCurses spells it so */
+ #endif
+ 
+ #ifndef NCURSES_REENTRANT
+@@ -172,7 +173,7 @@ typedef struct {
+ #define TAGMASK     ((1 << LENGTH(tags)) - 1)
+ 
+ #ifdef NDEBUG
+- #define debug(format, args...)
++ #define debug(...) /* WIN32/C99: was the GNU form debug(format, args...) */
+ #else
+  #define debug eprint
+ #endif
+@@ -881,9 +882,9 @@ static void
+ keypress(int code) {
+ 	int key = -1;
+ 	unsigned int len = 1;
+-	char buf[8] = { '\e' };
++	char buf[8] = { '\033' };
+ 
+-	if (code == '\e') {
++	if (code == '\033') {
+ 		/* pass characters following escape to the underlying app */
+ 		nodelay(stdscr, TRUE);
+ 		for (int t; len < sizeof(buf) && (t = getch()) != ERR; len++) {
+@@ -899,7 +900,7 @@ keypress(int code) {
+ 	for (Client *c = runinall ? nextvisible(clients) : sel; c; c = nextvisible(c->next)) {
+ 		if (is_content_visible(c)) {
+ 			c->urgent = false;
+-			if (code == '\e')
++			if (code == '\033')
+ 				vt_write(c->term, buf, len);
+ 			else
+ 				vt_keypress(c->term, code);
+@@ -925,6 +926,19 @@ mouse_setup(void) {
+ #endif /* CONFIG_MOUSE */
+ }
+ 
++#ifdef _WIN32
++static bool
++checkshell(const char *shell) {
++	/* C:\Windows\System32\cmd.exe, C:/msys64/usr/bin/bash.exe */
++	if (shell == NULL || !shell[0] || shell[1] != ':')
++		return false;
++	const char *b1 = strrchr(shell, '/'), *b2 = strrchr(shell, '\\');
++	const char *base = (b1 > b2 ? b1 : b2) + 1;
++	if (!strncmp(base, dvtm_name, strlen(dvtm_name)))
++		return false;
++	return access(shell, F_OK) == 0;
++}
++#else
+ static bool
+ checkshell(const char *shell) {
+ 	if (shell == NULL || *shell == '\0' || *shell != '/')
+@@ -935,6 +949,7 @@ checkshell(const char *shell) {
+ 		return false;
+ 	return true;
+ }
++#endif
+ 
+ static const char *
+ getshell(void) {
+@@ -945,13 +960,20 @@ getshell(void) {
+ 		return shell;
+ 	if ((pw = getpwuid(getuid())) && checkshell(pw->pw_shell))
+ 		return pw->pw_shell;
++#ifdef _WIN32
++	return "cmd.exe";
++#else
+ 	return "/bin/sh";
++#endif
+ }
+ 
+ static void
+ setup(void) {
+ 	shell = getshell();
+ 	setlocale(LC_CTYPE, "");
++#ifdef _WIN32
++	compat_console_events_mode(1);
++#endif
+ 	initscr();
+ 	start_color();
+ 	noecho();
+@@ -1036,9 +1058,17 @@ cleanup(void) {
+ static char *getcwd_by_pid(Client *c) {
+ 	if (!c)
+ 		return NULL;
++#ifdef _WIN32
++	/* WIN32: another process' cwd lives in its PEB
++	 * (RTL_USER_PROCESS_PARAMETERS.CurrentDirectory); not worth an
++	 * NtQueryInformationProcess + ReadProcessMemory here: new windows
++	 * start in dvtm's own directory. */
++	return NULL;
++#else
+ 	char buf[32];
+ 	snprintf(buf, sizeof buf, "/proc/%d/cwd", c->pid);
+ 	return realpath(buf, NULL);
++#endif
+ }
+ 
+ static void
+diff --git a/upstream/dvtm/vt.c b/ports/dvtm/vt.c
+index 15dabc1..2a22219 100644
+--- a/upstream/dvtm/vt.c
++++ b/ports/dvtm/vt.c
+@@ -207,44 +207,44 @@ static const char *keytable[KEY_MAX+1] = {
+ 	[KEY_RIGHT]     = "C",
+ 	[KEY_LEFT]      = "D",
+ #ifdef KEY_SUP
+-	[KEY_SUP]       = "\e[1;2A",
++	[KEY_SUP]       = "\033[1;2A",
+ #endif
+ #ifdef KEY_SDOWN
+-	[KEY_SDOWN]     = "\e[1;2B",
++	[KEY_SDOWN]     = "\033[1;2B",
+ #endif
+-	[KEY_SRIGHT]    = "\e[1;2C",
+-	[KEY_SLEFT]     = "\e[1;2D",
++	[KEY_SRIGHT]    = "\033[1;2C",
++	[KEY_SLEFT]     = "\033[1;2D",
+ 	[KEY_BACKSPACE] = "\177",
+-	[KEY_IC]        = "\e[2~",
+-	[KEY_DC]        = "\e[3~",
+-	[KEY_PPAGE]     = "\e[5~",
+-	[KEY_NPAGE]     = "\e[6~",
+-	[KEY_HOME]      = "\e[7~",
+-	[KEY_END]       = "\e[8~",
+-	[KEY_BTAB]      = "\e[Z",
++	[KEY_IC]        = "\033[2~",
++	[KEY_DC]        = "\033[3~",
++	[KEY_PPAGE]     = "\033[5~",
++	[KEY_NPAGE]     = "\033[6~",
++	[KEY_HOME]      = "\033[7~",
++	[KEY_END]       = "\033[8~",
++	[KEY_BTAB]      = "\033[Z",
+ 	[KEY_SUSPEND]   = "\x1A",  /* Ctrl+Z gets mapped to this */
+-	[KEY_F(1)]      = "\e[11~",
+-	[KEY_F(2)]      = "\e[12~",
+-	[KEY_F(3)]      = "\e[13~",
+-	[KEY_F(4)]      = "\e[14~",
+-	[KEY_F(5)]      = "\e[15~",
+-	[KEY_F(6)]      = "\e[17~",
+-	[KEY_F(7)]      = "\e[18~",
+-	[KEY_F(8)]      = "\e[19~",
+-	[KEY_F(9)]      = "\e[20~",
+-	[KEY_F(10)]     = "\e[21~",
+-	[KEY_F(11)]     = "\e[23~",
+-	[KEY_F(12)]     = "\e[24~",
+-	[KEY_F(13)]     = "\e[23~",
+-	[KEY_F(14)]     = "\e[24~",
+-	[KEY_F(15)]     = "\e[25~",
+-	[KEY_F(16)]     = "\e[26~",
+-	[KEY_F(17)]     = "\e[28~",
+-	[KEY_F(18)]     = "\e[29~",
+-	[KEY_F(19)]     = "\e[31~",
+-	[KEY_F(20)]     = "\e[32~",
+-	[KEY_F(21)]     = "\e[33~",
+-	[KEY_F(22)]     = "\e[34~",
++	[KEY_F(1)]      = "\033[11~",
++	[KEY_F(2)]      = "\033[12~",
++	[KEY_F(3)]      = "\033[13~",
++	[KEY_F(4)]      = "\033[14~",
++	[KEY_F(5)]      = "\033[15~",
++	[KEY_F(6)]      = "\033[17~",
++	[KEY_F(7)]      = "\033[18~",
++	[KEY_F(8)]      = "\033[19~",
++	[KEY_F(9)]      = "\033[20~",
++	[KEY_F(10)]     = "\033[21~",
++	[KEY_F(11)]     = "\033[23~",
++	[KEY_F(12)]     = "\033[24~",
++	[KEY_F(13)]     = "\033[23~",
++	[KEY_F(14)]     = "\033[24~",
++	[KEY_F(15)]     = "\033[25~",
++	[KEY_F(16)]     = "\033[26~",
++	[KEY_F(17)]     = "\033[28~",
++	[KEY_F(18)]     = "\033[29~",
++	[KEY_F(19)]     = "\033[31~",
++	[KEY_F(20)]     = "\033[32~",
++	[KEY_F(21)]     = "\033[33~",
++	[KEY_F(22)]     = "\033[34~",
+ 	[KEY_RESIZE]    = "",
+ #ifdef KEY_EVENT
+ 	[KEY_EVENT]     = "",
+@@ -285,10 +285,13 @@ static void row_roll(Row *start, Row *end, int count)
+ 		count += n;
+ 
+ 	if (count) {
+-		char buf[count * sizeof(Row)];
++		char *buf = malloc(count * sizeof(Row)); /* WIN32: was a VLA */
++		if (!buf)
++			return;
+ 		memcpy(buf, start, count * sizeof(Row));
+ 		memmove(start, start + count, (n - count) * sizeof(Row));
+ 		memcpy(end - count, buf, count * sizeof(Row));
++		free(buf);
+ 		for (Row *row = start; row < end; row++)
+ 			row->dirty = true;
+ 	}
+@@ -683,7 +686,7 @@ static void interpret_csi_sgr(Vt *t, int param[], int pcount)
+ 		case 28:
+ 			b->curattrs &= ~A_INVIS;
+ 			break;
+-		case 30 ... 37:	/* fg */
++		case 30: case 31: case 32: case 33: case 34: case 35: case 36: case 37:	/* fg */
+ 			b->curfg = param[i] - 30;
+ 			break;
+ 		case 38:
+@@ -695,7 +698,7 @@ static void interpret_csi_sgr(Vt *t, int param[], int pcount)
+ 		case 39:
+ 			b->curfg = -1;
+ 			break;
+-		case 40 ... 47:	/* bg */
++		case 40: case 41: case 42: case 43: case 44: case 45: case 46: case 47:	/* bg */
+ 			b->curbg = param[i] - 40;
+ 			break;
+ 		case 48:
+@@ -707,10 +710,10 @@ static void interpret_csi_sgr(Vt *t, int param[], int pcount)
+ 		case 49:
+ 			b->curbg = -1;
+ 			break;
+-		case 90 ... 97:	/* hi fg */
++		case 90: case 91: case 92: case 93: case 94: case 95: case 96: case 97:	/* hi fg */
+ 			b->curfg = param[i] - 82;
+ 			break;
+-		case 100 ... 107: /* hi bg */
++		case 100: case 101: case 102: case 103: case 104: case 105: case 106: case 107: /* hi bg */
+ 			b->curbg = param[i] - 92;
+ 			break;
+ 		default:
+@@ -1197,7 +1200,7 @@ static void try_interpret_escape_seq(Vt *t)
+ 		break;
+ 	case ']': /* OSC - operating system command */
+ 		if (lastchar == '\a' ||
+-		   (lastchar == '\\' && t->elen >= 2 && t->ebuf[t->elen - 2] == '\e')) {
++		   (lastchar == '\\' && t->elen >= 2 && t->ebuf[t->elen - 2] == '\033')) {
+ 			t->elen -= lastchar == '\a' ? 1 : 2;
+ 			t->ebuf[t->elen] = '\0';
+ 			interpret_osc(t);
+@@ -1276,7 +1279,7 @@ static void process_nonprinting(Vt *t, wchar_t wc)
+ {
+ 	Buffer *b = t->buffer;
+ 	switch (wc) {
+-	case '\e': /* ESC */
++	case '\033': /* ESC */
+ 		new_escape_sequence(t);
+ 		break;
+ 	case '\a': /* BEL */
+@@ -1413,6 +1416,12 @@ int vt_process(Vt *t)
+ 	res = read(t->pty, t->rbuf + t->rlen, sizeof(t->rbuf) - t->rlen);
+ 	if (res < 0)
+ 		return -1;
++#ifdef _WIN32
++	if (res == 0) {
++		errno = EIO; /* Linux semantics of a master whose slave is gone */
++		return -1;
++	}
++#endif
+ 
+ 	t->rlen += res;
+ 	while (pos < t->rlen) {
+@@ -1536,7 +1545,7 @@ void vt_draw(Vt *t, WINDOW *win, int srow, int scol)
+ 			}
+ 
+ 			if (is_utf8 && cell->text >= 128) {
+-				char buf[MB_CUR_MAX + 1];
++				char buf[MB_LEN_MAX + 1]; /* UCRT: MB_CUR_MAX is a call */
+ 				size_t len = wcrtomb(buf, cell->text, NULL);
+ 				if (len > 0) {
+ 					waddnstr(win, buf, len);
+@@ -1600,6 +1609,38 @@ pid_t vt_forkpty(Vt *t, const char *p, const char *argv[], const char *cwd, cons
+ 		from = NULL;
+ 	}
+ 
++#ifdef _WIN32
++	/*
++	 * WIN32: the child does not talk to *us* but to the conhost behind
++	 * ConPTY, which re-renders everything into a fixed xterm-like dialect.
++	 * TERM must describe that terminal, not dvtm's emulator: programs with
++	 * a terminfo database (vim, less from Git for Windows/MSYS) would not
++	 * know "dvtm-256color" anyway.
++	 */
++	const char *envv[2 * 16 + 3];
++	int ne = 0;
++	for (const char **envp = env; envp && envp[0] && ne < 2 * 16; envp += 2) {
++		envv[ne++] = envp[0];
++		envv[ne++] = envp[1];
++	}
++	envv[ne++] = "TERM";
++	envv[ne++] = "xterm-256color";
++	envv[ne] = NULL;
++
++	struct compat_spawn_opts o;
++	memset(&o, 0, sizeof(o));
++	o.argv = argv;
++	o.cwd = cwd;
++	o.env = envv;
++	o.ws = ws;
++	o.stdin_fd = to ? vt2ed[0] : -1;
++	o.stdout_fd = from ? ed2vt[1] : -1;
++	(void)vt_term;
++	(void)p; /* argv[0] is resolved through PATH by compat_spawn_pty */
++	pid_t pid = compat_spawn_pty(&o, &t->pty);
++	if (pid < 0)
++		return -1;
++#else
+ 	pid_t pid = forkpty(&t->pty, NULL, NULL, &ws);
+ 	if (pid < 0)
+ 		return -1;
+@@ -1652,6 +1693,7 @@ pid_t vt_forkpty(Vt *t, const char *p, const char *argv[], const char *cwd, cons
+ 		fprintf(stderr, "\nexecv() failed.\nCommand: '%s'\n", argv[0]);
+ 		exit(1);
+ 	}
++#endif
+ 
+ 	if (to) {
+ 		close(vt2ed[0]);
+@@ -1693,7 +1735,7 @@ static void send_curs(Vt *t)
+ {
+ 	Buffer *b = t->buffer;
+ 	char keyseq[16];
+-	snprintf(keyseq, sizeof keyseq, "\e[%d;%dR", (int)(b->curs_row - b->lines), b->curs_col);
++	snprintf(keyseq, sizeof keyseq, "\033[%d;%dR", (int)(b->curs_row - b->lines), b->curs_col);
+ 	vt_write(t, keyseq, strlen(keyseq));
+ }
+ 
+@@ -1707,7 +1749,7 @@ void vt_keypress(Vt *t, int keycode)
+ 		case KEY_DOWN:
+ 		case KEY_RIGHT:
+ 		case KEY_LEFT: {
+-			char keyseq[3] = { '\e', (t->curskeymode ? 'O' : '['), keytable[keycode][0] };
++			char keyseq[3] = { '\033', (t->curskeymode ? 'O' : '['), keytable[keycode][0] };
+ 			vt_write(t, keyseq, sizeof keyseq);
+ 			break;
+ 		}
+@@ -1727,7 +1769,7 @@ void vt_keypress(Vt *t, int keycode)
+ void vt_mouse(Vt *t, int x, int y, mmask_t mask)
+ {
+ #ifdef NCURSES_MOUSE_VERSION
+-	char seq[6] = { '\e', '[', 'M' }, state = 0, button = 0;
++	char seq[6] = { '\033', '[', 'M' }, state = 0, button = 0;
+ 
+ 	if (!t->mousetrack)
+ 		return;
