@@ -570,9 +570,45 @@ static void exec_show(unsigned int id, const wn_notify *n)
 	free(sum);
 	free(body);
 
+	/* Also hand the fields over as environment variables (like dunst's
+	 * DUNST_*), for display programs that want more than lines of text
+	 * (wnotify-toast uses the icon and urgency). A per-process block, not
+	 * SetEnvironmentVariable: several requests run concurrently. */
+	const wn_hint *ip = wn_hint_get(n, "image-path"), *ur = wn_hint_get(n, "urgency");
+	char idbuf[16];
+	snprintf(idbuf, sizeof idbuf, "%u", id);
+	const char *vars[][2] = {
+		{"NOTIFYD_ID", idbuf},
+		{"NOTIFYD_APP", n->app_name},
+		{"NOTIFYD_SUMMARY", n->summary},
+		{"NOTIFYD_BODY", n->body},
+		{"NOTIFYD_ICON", *n->app_icon ? n->app_icon : ip ? ip->value : ""},
+		{"NOTIFYD_URGENCY", ur ? ur->value : "1"},
+	};
+	wchar_t *parent = GetEnvironmentStringsW();
+	size_t plen = 0;
+	while (parent[plen] || parent[plen + 1]) /* block ends with two NULs */
+		plen++;
+	plen += 1;
+	sbuf eb = {0};
+	sb_add(&eb, (const char *)parent, plen * sizeof(wchar_t));
+	FreeEnvironmentStringsW(parent);
+	for (size_t v = 0; v < sizeof vars / sizeof vars[0]; v++) {
+		char kv[8192];
+		snprintf(kv, sizeof kv, "%s=%s", vars[v][0], vars[v][1] ? vars[v][1] : "");
+		wchar_t *w = wn_wide(kv);
+		sb_add(&eb, (const char *)w, (wcslen(w) + 1) * sizeof(wchar_t));
+		free(w);
+	}
+	const wchar_t nul = 0;
+	sb_add(&eb, (const char *)&nul, sizeof nul);
+
 	STARTUPINFOW si = {.cb = sizeof si};
 	PROCESS_INFORMATION pi;
-	if (!CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+	BOOL started = CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT,
+				      eb.s, NULL, &si, &pi);
+	free(eb.s);
+	if (!started) {
 		fprintf(stderr, "notifyd: cannot start display command (%lu)\n", GetLastError());
 		close_notification(id, WN_CLOSE_UNDEFINED);
 		return;
@@ -978,7 +1014,10 @@ static int windows_sync(void)
 	if (sqlite3_prepare_v2(w,
 			       "SELECT n.Id, h.PrimaryId, n.ArrivalTime, n.Payload FROM Notification n"
 			       " JOIN NotificationHandler h ON h.RecordId = n.HandlerId"
-			       " WHERE n.Type = 'toast' ORDER BY n.ArrivalTime",
+			       /* group 'wnotify' = toasts shown by wnotify-toast, i.e. our own
+				* notifications displayed natively: already recorded, skip them */
+			       " WHERE n.Type = 'toast' AND COALESCE(n.[Group], '') <> 'wnotify'"
+			       " ORDER BY n.ArrivalTime",
 			       -1, &st, NULL) != SQLITE_OK) {
 		fprintf(stderr, "notifyd: unexpected wpndatabase schema: %s\n", sqlite3_errmsg(w));
 		sqlite3_close(w);

@@ -28,7 +28,8 @@ Kata en dos partes:
 | Pieza | Dónde | Estado |
 |---|---|---|
 | `wnotify` — protocolo + librería C + `notify-send` | [`wnotify/`](wnotify/) | ✔ ([PROTOCOL.md](wnotify/PROTOCOL.md)) |
-| `notifyd` — daemon con historial SQLite | [`notifyd/`](notifyd/) | ✔ MVP |
+| `notifyd` — daemon con historial SQLite | [`notifyd/`](notifyd/) | ✔ |
+| `wnotify-toast` — toasts nativos como pantalla de notifyd | [`toast/`](toast/) | ✔ |
 | herbe → Win32/GDI | fork `dudik/herbe`, rama `port/windows` | ✔ |
 | tiramisu C (2021) → MSVC | fork `Sweets/tiramisu`, rama `port/c-msvc` | ✔ |
 | tiramisu Vala → Odin | fork `Sweets/tiramisu`, rama `port/odin` | ✔ |
@@ -39,9 +40,13 @@ Los forks viven fuera de este repo (`DEV/gitclones/*`), cada uno con su rama de
 port; cada port trae una copia de `wnotify.c/.h`. La copia canónica es la de
 este directorio.
 
+## ¿Toasts nativos de Windows o wnotify?
+
+Los dos funcionan y se pueden combinar (importar los toasts de Windows al historial, mostrar las notificaciones wnotify como toasts nativos, o ambas): [NATIVO-VS-WNOTIFY.md](NATIVO-VS-WNOTIFY.md).
+
 ## Tests
 
-[`tests/run-tests.ps1`](tests/) — 65 pruebas end-to-end de todos los ports y de notifyd, incluido el soporte de íconos (ruta, `file://`, `image-path`, `image-data`, toasts) verificado por captura de pantalla.
+[`tests/run-tests.ps1`](tests/) — 75 pruebas end-to-end de todos los ports y de notifyd, incluido el soporte de íconos (ruta, `file://`, `image-path`, `image-data`, toasts) verificado por captura de pantalla.
 
 ## La guía de porteo
 

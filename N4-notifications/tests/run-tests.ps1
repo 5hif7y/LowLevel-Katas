@@ -21,6 +21,9 @@ param(
 )
 $ErrorActionPreference = 'Continue'
 Set-StrictMode -Version 2
+# A script error inside a check (e.g. a StrictMode property error) would skip
+# the check silently; count it as a failure instead.
+trap { $script:Fail++; Write-Host "  FAIL  (script error) $($_.Exception.Message) at line $($_.InvocationInfo.ScriptLineNumber)" -ForegroundColor Red; continue }
 
 $N4 = Split-Path $PSScriptRoot -Parent
 $Bin = @{
@@ -31,6 +34,7 @@ $Bin = @{
     Herbe       = Join-Path $GitClones 'herbe\win32\herbe.exe'
     Dunst       = Join-Path $GitClones 'dunst\build-win\dunst.exe'
     Dunstctl    = Join-Path $GitClones 'dunst\dunstctl.ps1'
+    Toast       = Join-Path $N4 'toast\wnotify-toast.exe'
 }
 $Tmp = Join-Path ([IO.Path]::GetTempPath()) ("n4-tests-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Path $Tmp | Out-Null
@@ -277,6 +281,54 @@ if (Section 'notifyd-windows') {
         $rows = @(From-JsonArray (& $Bin.Notifyd --db $db history -n 500 --json) | Where-Object { $_.summary -like "n4 toast $tag*" })
         Check 'notifyd --windows: removal from Action Center -> close reason 4' ($rows.Count -eq 1 -and $rows[0].close_reason -eq 4)
         Stop-Daemon $d
+    }
+}
+
+# ---- native Windows toasts as the display (wnotify-toast) -------------------
+# The click -> exit 0 (ActionInvoked) path needs a human; everything else here
+# is checked against the Action Center history.
+
+if (Section 'toast') {
+    $miss = Need @('Toast', 'Notifyd', 'NotifySend')
+    if ($miss) { SkipTest 'wnotify-toast' "$miss not built" } else {
+        [void][Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
+        $aumid = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
+        $inCenter = { param($tag) @([Windows.UI.Notifications.ToastNotificationManager]::History.GetHistory($aumid) | Where-Object { $_.Group -eq 'wnotify' -and $_.Tag -eq $tag }) }
+
+        $p = Start-Process $Bin.Toast -ArgumentList 'n4 toast standalone', 'line' -PassThru -WindowStyle Hidden; [void]$p.Handle
+        Start-Sleep 2
+        Check 'wnotify-toast: toast in the Action Center' (@(& $inCenter ([string]$p.Id)).Count -eq 1)
+        taskkill /PID $p.Id | Out-Null; $p.WaitForExit(5000) | Out-Null
+        Check 'wnotify-toast: WM_CLOSE -> exit 2 and toast withdrawn' ($p.ExitCode -eq 2 -and @(& $inCenter ([string]$p.Id)).Count -eq 0) "exit=$($p.ExitCode)"
+
+        $p = Start-Process $Bin.Toast -ArgumentList 'n4 toast timeout' -PassThru -WindowStyle Hidden; [void]$p.Handle
+        $p.WaitForExit(30000) | Out-Null
+        Check 'wnotify-toast: popup timeout -> exit 2' ($p.ExitCode -eq 2)
+
+        $db = "$Tmp\toast.sqlite3"; $pipe = 'n4t-toast'; Set-Pipe $pipe
+        # --windows too: the native toasts we show must not come back as imports
+        $d = Start-Daemon $Bin.Notifyd @('--db', $db, '--exec', $Bin.Toast, '--windows') 'toast'; Wait-Pipe $pipe | Out-Null
+        $id = & $Bin.NotifySend -p -a Correo -i $IconMagenta ("Mensaje de Ana $enye") 'Reunion a las 10'
+        Start-Sleep 2
+        $t = @(& $inCenter $id)
+        Check 'notifyd --exec wnotify-toast: native toast shown' ($t.Count -eq 1)
+        if ($t.Count) {
+            $xml = $t[0].Content.GetXml()
+            Check 'wnotify-toast icon: app_icon becomes appLogoOverride' ($xml -match 'appLogoOverride' -and $xml -match 'icon-magenta.png')
+            Check 'wnotify-toast: summary (UTF-8) and app attribution' ($xml -match "Mensaje de Ana $enye" -and $xml -match 'placement="attribution"')
+        }
+        $id2 = & $Bin.NotifySend -p -a Correo -h "string:image-path:$IconCyan" 'image-path icon' 'x'
+        Start-Sleep 2
+        $t2 = @(& $inCenter $id2)
+        Check 'wnotify-toast icon: image-path hint used when app_icon is empty' ($t2.Count -eq 1 -and $t2[0].Content.GetXml() -match 'icon-cyan.png')
+        & $Bin.NotifySend --close=$id; & $Bin.NotifySend --close=$id2; Start-Sleep 2
+        Check 'notifyd --exec wnotify-toast: CloseNotification withdraws the toast' (@(& $inCenter $id).Count -eq 0 -and @(& $inCenter $id2).Count -eq 0)
+        Stop-Daemon $d
+        $all = From-JsonArray (& $Bin.Notifyd --db $db history -n 1000 --json)
+        $row = @($all | Where-Object { [string]$_.id -eq $id })
+        Check 'notifyd records the toast-displayed notification as closed (3)' ($row.Count -eq 1 -and $row[0].close_reason -eq 3)
+        $dups = @($all | Where-Object { $_.summary -eq "Mensaje de Ana $enye" })
+        Check 'notifyd --windows + --exec wnotify-toast: own toasts not re-imported' ($dups.Count -eq 1) "found $($dups.Count)"
     }
 }
 
