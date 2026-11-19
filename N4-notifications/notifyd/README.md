@@ -6,8 +6,8 @@ queda un historial en memoria que se pierde al reiniciar. `notifyd` invierte
 la prioridad: **primero se escribe el evento en disco, después se muestra.**
 
 ```
-notifyd [--db PATH] [--exec CMD | --forward PIPE]
-notifyd history [-n N] [--app APP] [--search TEXT] [--json]
+notifyd [--db PATH] [--exec CMD | --forward PIPE] [--windows]
+notifyd history [-n N] [--app APP] [--search QUERY] [--json]
 notifyd show ID          # la vida completa de una notificación, evento por evento
 notifyd events [-n N] [--since SEQ]
 notifyd stats
@@ -41,6 +41,71 @@ Decisiones:
 | ids nunca reutilizados | al arrancar, `next_id = MAX(id)+1`; un id identifica una notificación para siempre |
 | `client_exe` del proceso real | `GetNamedPipeClientProcessId`: el `app_name` lo declara el emisor, el ejecutable no se puede falsear |
 
+## Búsqueda de texto completo (FTS5)
+
+Si el SQLite enlazado trae FTS5, al arrancar el daemon crea
+`notifications_fts` (tabla FTS5 *external content* sobre `summary`, `body`,
+`app_name`, mantenida por triggers, tokenizer `unicode61 remove_diacritics 2`)
+y la llena con `rebuild` si la base ya tenía filas. `--search` acepta la
+sintaxis de FTS5:
+
+```
+notifyd history --search 'build*'                 # prefijo
+notifyd history --search 'nandu'                  # encuentra "ñandú" (sin tildes)
+notifyd history --search 'produccion AND listo'
+notifyd history --search '"from Ana"'             # frase
+notifyd history --search 'app_name:discord'       # una columna
+```
+
+Sin FTS5 cae a `LIKE` y lo avisa por stderr; una consulta FTS mal formada sale
+con el error de SQLite y exit 1. Dos formas de tener FTS5:
+
+```bat
+:: SQLite compilado dentro del binario (sin sqlite3.dll), desde la amalgamation
+set SQLITE_SRC=C:\ruta\sqlite-autoconf-3530300
+notifyd\build.bat
+
+:: o el de vcpkg, con la feature
+vcpkg install sqlite3[core,json1,fts5]
+```
+
+## Notificaciones de Windows (`--windows`)
+
+Windows guarda los toasts del Centro de actividades en su propia base SQLite,
+legible por el usuario:
+
+```
+%LOCALAPPDATA%\Microsoft\Windows\Notifications\wpndatabase.db
+  Notification(Id, HandlerId, Type, Payload = XML <toast>, ArrivalTime FILETIME, ...)
+  NotificationHandler(RecordId, PrimaryId = AUMID de la app)
+```
+
+Con `--windows`, un hilo abre esa base en sólo lectura cada ~2 s (o antes si
+cambia el directorio), importa cada toast nuevo como una notificación más
+(`app_name` derivado del AUMID, `summary` = primer `<text>`, `body` = el resto,
+XML completo y AUMID en hints `x-windows-*`) y registra el mapeo en
+`windows_toasts` **en la misma transacción**: un toast nunca se importa dos
+veces ni queda a medias. Cuando un toast desaparece del Centro de actividades
+se registra un cierre con motivo 4 (Windows no dice si fue el usuario o la
+expiración).
+
+Por qué así y no `UserNotificationListener`: la API oficial (WinRT) exige
+identidad de paquete (MSIX o *sparse package*), y para un build local eso
+implica firmar con un certificado e instalarlo como confiable en la máquina.
+Leer el store no cambia nada del sistema. El costo: es un formato **no
+documentado** (estable desde Windows 10 1607). Si cambia, `notifyd` lo reporta
+("unexpected wpndatabase schema") y sigue funcionando para wnotify.
+
+Las notificaciones directorio-WAL no son confiables: Windows no actualiza el
+tamaño/mtime de un archivo abierto en el directorio en cada escritura, por eso
+el poll de 2 s es lo que garantiza frescura y el aviso del directorio sólo lo
+adelanta.
+
+Verificado: al arrancar importó los toasts presentes; un toast nuevo emitido
+con `ToastNotificationManager` apareció en `history` en menos de 3 s con UTF-8
+correcto y `app_name` = `powershell`; al quitarlo del Centro de actividades
+quedó cerrado con motivo 4.
+
 ## Modos de pantalla
 
 * **headless**: sólo registra (como tiramisu). `CloseNotification` cierra con motivo 3.
@@ -67,12 +132,9 @@ Script de prueba (PowerShell) contra una base temporal:
 
 ## Pendiente / ideas
 
-* **FTS5** para `--search`: el `sqlite3` de vcpkg instalado no trae FTS5
-  (`vcpkg install sqlite3[fts5]`). Hoy la búsqueda es `LIKE`.
-* **Toasts nativos de Windows**: `UserNotificationListener` (WinRT) permite
-  leer las notificaciones de *otras* apps de Windows con consentimiento del
-  usuario; requiere identidad de paquete (MSIX o *sparse package*). Sería la
-  forma de que el historial incluya también lo que no pasa por wnotify.
+* Acciones de los toasts de Windows: quedan en el XML guardado, pero
+  invocarlas requiere activar la app dueña (activador COM o protocolo); no
+  implementado.
 * Retención/archivo (exportar a JSON lines por mes), UI de historial.
 
 ## dunst

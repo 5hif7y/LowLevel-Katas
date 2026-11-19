@@ -8,6 +8,8 @@
  *   notifyd --exec herbe.exe         one herbe process per notification
  *   notifyd --forward \\.\pipe\X     chain to another daemon (dunst, tiramisu)
  *                                    started with WNOTIFY_PIPE=\\.\pipe\X
+ *   notifyd --windows                also import the toasts of every Windows app
+ *                                    (read from Windows' own notification store)
  *
  * Queries (read-only, safe while the daemon runs thanks to WAL):
  *   notifyd history [-n N] [--app APP] [--search TEXT] [--json]
@@ -107,6 +109,7 @@ static void sb_json_str(sbuf *b, const char *s)
 static sqlite3 *db;
 static CRITICAL_SECTION db_lock; /* one connection, many pipe threads */
 static unsigned int next_id;
+static bool have_fts; /* notifications_fts exists and this SQLite has FTS5 */
 
 static void db_exec(const char *sql)
 {
@@ -309,7 +312,8 @@ static const char *hint_str(const wn_notify *n, const char *name)
 }
 
 /* Record a Notify. Returns the id handed back to the client. */
-static unsigned int record_notify(const wn_notify *n, const struct client *cl, bool *is_replace)
+static unsigned int record_notify(const wn_notify *n, const struct client *cl, bool *is_replace,
+				  long long windows_id, long long windows_arrival_ms)
 {
 	EnterCriticalSection(&db_lock);
 	db_exec("BEGIN IMMEDIATE");
@@ -379,6 +383,17 @@ static unsigned int record_notify(const wn_notify *n, const struct client *cl, b
 	sb_cat(&ev, "}");
 	const char *kind = *is_replace ? "replace" : "notify";
 	long long seq = event_insert(kind, id, cl, ev.s);
+
+	if (windows_id) { /* same transaction: never imported twice, never half-imported */
+		sqlite3_stmt *ws = prep("INSERT INTO windows_toasts(windows_id, notification_id, aumid, arrival_ts)"
+					" VALUES (?1, ?2, ?3, ?4)");
+		sqlite3_bind_int64(ws, 1, windows_id);
+		sqlite3_bind_int64(ws, 2, id);
+		bind_text_or_null(ws, 3, hint_str(n, "x-windows-aumid"));
+		sqlite3_bind_int64(ws, 4, windows_arrival_ms);
+		sqlite3_step(ws);
+		sqlite3_finalize(ws);
+	}
 
 	db_exec("COMMIT");
 	LeaveCriticalSection(&db_lock);
@@ -715,7 +730,7 @@ static void on_request(wn_conn *c, char **f, size_t nf, void *ud)
 		struct client cl;
 		client_info(c, &cl);
 		bool replace;
-		unsigned int id = record_notify(&n, &cl, &replace); /* persisted before anything else */
+		unsigned int id = record_notify(&n, &cl, &replace, 0, 0); /* persisted before anything else */
 		char reply[32];
 		snprintf(reply, sizeof reply, "OK\t%u", id);
 		wn_reply(c, reply);
@@ -741,9 +756,348 @@ static void on_request(wn_conn *c, char **f, size_t nf, void *ud)
 	}
 }
 
+/* ---- full-text search (FTS5) -------------------------------------------------
+ * External-content FTS table over notifications(summary, body, app_name), kept
+ * in sync by triggers. Only created when this SQLite was built with FTS5; the
+ * history query falls back to LIKE otherwise. */
+
+static bool fts_compiled(void)
+{
+	return sqlite3_compileoption_used("ENABLE_FTS5") != 0;
+}
+
+static bool fts_table_exists(void)
+{
+	sqlite3_stmt *st = prep("SELECT 1 FROM sqlite_master WHERE name = 'notifications_fts'");
+	bool r = sqlite3_step(st) == SQLITE_ROW;
+	sqlite3_finalize(st);
+	return r;
+}
+
+static void fts_setup(void)
+{
+	if (!fts_compiled()) {
+		fprintf(stderr, "notifyd: SQLite %s has no FTS5; --search uses LIKE\n", sqlite3_libversion());
+		return;
+	}
+	bool fresh = !fts_table_exists();
+	db_exec("CREATE VIRTUAL TABLE IF NOT EXISTS notifications_fts USING fts5("
+		" summary, body, app_name, content='notifications', content_rowid='id',"
+		" tokenize='unicode61 remove_diacritics 2');"
+		"CREATE TRIGGER IF NOT EXISTS notifications_fts_ai AFTER INSERT ON notifications BEGIN"
+		"  INSERT INTO notifications_fts(rowid, summary, body, app_name)"
+		"  VALUES (new.id, new.summary, new.body, new.app_name); END;"
+		"CREATE TRIGGER IF NOT EXISTS notifications_fts_ad AFTER DELETE ON notifications BEGIN"
+		"  INSERT INTO notifications_fts(notifications_fts, rowid, summary, body, app_name)"
+		"  VALUES ('delete', old.id, old.summary, old.body, old.app_name); END;"
+		"CREATE TRIGGER IF NOT EXISTS notifications_fts_au AFTER UPDATE OF summary, body, app_name"
+		"  ON notifications BEGIN"
+		"  INSERT INTO notifications_fts(notifications_fts, rowid, summary, body, app_name)"
+		"  VALUES ('delete', old.id, old.summary, old.body, old.app_name);"
+		"  INSERT INTO notifications_fts(rowid, summary, body, app_name)"
+		"  VALUES (new.id, new.summary, new.body, new.app_name); END;");
+	if (fresh) /* database created before FTS existed: index what is already there */
+		db_exec("INSERT INTO notifications_fts(notifications_fts) VALUES ('rebuild')");
+	have_fts = true;
+}
+
+/* ---- Windows toasts --------------------------------------------------------
+ * Windows keeps every toast of the Action Center in a SQLite database owned by
+ * the WpnUserService, readable by the user:
+ *   %LOCALAPPDATA%\Microsoft\Windows\Notifications\wpndatabase.db
+ *     Notification(Id, HandlerId, Type, Payload <toast> XML, ArrivalTime FILETIME, ...)
+ *     NotificationHandler(RecordId, PrimaryId = AUMID of the app)
+ * Undocumented but stable since Windows 10 1607. The official API
+ * (UserNotificationListener) needs package identity (MSIX); this does not.
+ * Rows vanish when the toast is dismissed from the Action Center: that is
+ * recorded as a close with reason 4 (undefined: Windows does not say why). */
+
+static void xml_unescape_into(sbuf *b, const char *s, size_t n)
+{
+	for (size_t i = 0; i < n; i++) {
+		if (s[i] != '&') {
+			sb_add(b, s + i, 1);
+			continue;
+		}
+		const char *semi = memchr(s + i, ';', n - i);
+		if (!semi || semi - (s + i) > 10) {
+			sb_add(b, s + i, 1);
+			continue;
+		}
+		size_t len = (size_t)(semi - (s + i)) + 1;
+		const char *e = s + i;
+		unsigned long cp = 0;
+		if (!strncmp(e, "&amp;", 5)) sb_cat(b, "&");
+		else if (!strncmp(e, "&lt;", 4)) sb_cat(b, "<");
+		else if (!strncmp(e, "&gt;", 4)) sb_cat(b, ">");
+		else if (!strncmp(e, "&quot;", 6)) sb_cat(b, "\"");
+		else if (!strncmp(e, "&apos;", 6)) sb_cat(b, "'");
+		else if (e[1] == '#') {
+			cp = e[2] == 'x' ? strtoul(e + 3, NULL, 16) : strtoul(e + 2, NULL, 10);
+			wchar_t w[3] = {0};
+			if (cp >= 0x10000) {
+				cp -= 0x10000;
+				w[0] = (wchar_t)(0xD800 + (cp >> 10));
+				w[1] = (wchar_t)(0xDC00 + (cp & 0x3FF));
+			} else {
+				w[0] = (wchar_t)cp;
+			}
+			char *u = wn_utf8(w);
+			sb_cat(b, u);
+			free(u);
+		} else {
+			sb_add(b, e, len);
+		}
+		i += len - 1;
+	}
+}
+
+/* Value of attribute `name` inside the tag starting at `tag` (up to '>'). */
+static char *xml_attr(const char *tag, const char *name)
+{
+	const char *end = strchr(tag, '>');
+	size_t nl = strlen(name);
+	for (const char *p = tag; p && end && p < end; p++) {
+		if (!strncmp(p, name, nl) && p[nl] == '=' && (p[nl + 1] == '"' || p[nl + 1] == '\'') &&
+		    (p == tag || p[-1] == ' ' || p[-1] == '\t' || p[-1] == '\n' || p[-1] == '\r')) {
+			char q = p[nl + 1];
+			const char *v = p + nl + 2, *ve = strchr(v, q);
+			if (!ve)
+				return NULL;
+			sbuf b = {0};
+			xml_unescape_into(&b, v, (size_t)(ve - v));
+			return b.s ? b.s : _strdup("");
+		}
+	}
+	return NULL;
+}
+
+struct toast {
+	char *summary, *body, *icon;
+};
+
+static void toast_parse(const char *xml, struct toast *t)
+{
+	sbuf body = {0};
+	t->summary = NULL;
+	t->icon = NULL;
+	int count = 0;
+	for (const char *p = xml; (p = strstr(p, "<text")); p++) {
+		if (p[5] != '>' && p[5] != ' ' && p[5] != '/')
+			continue; /* <textBox> etc. */
+		const char *gt = strchr(p, '>');
+		if (!gt)
+			break;
+		if (gt[-1] == '/')
+			continue; /* <text/> */
+		const char *close = strstr(gt + 1, "</text>");
+		if (!close)
+			break;
+		sbuf one = {0};
+		xml_unescape_into(&one, gt + 1, (size_t)(close - gt - 1));
+		if (count++ == 0) {
+			t->summary = one.s ? one.s : _strdup("");
+		} else {
+			if (body.len)
+				sb_cat(&body, "\n");
+			sb_cat(&body, one.s ? one.s : "");
+			free(one.s);
+		}
+		p = close;
+	}
+	if (!t->summary) { /* header-only toasts */
+		const char *h = strstr(xml, "<header");
+		t->summary = h ? xml_attr(h, "title") : NULL;
+		if (!t->summary)
+			t->summary = _strdup("");
+	}
+	const char *img = strstr(xml, "<image");
+	if (img)
+		t->icon = xml_attr(img, "src");
+	t->body = body.s ? body.s : _strdup("");
+	if (!t->icon)
+		t->icon = _strdup("");
+}
+
+/* "Claude_pzs8sxrjxfjjc!Claude" -> "Claude"; "com.squirrel.Discord.Discord" -> "Discord" */
+static char *aumid_name(const char *aumid)
+{
+	const char *bang = strrchr(aumid, '!');
+	if (bang && bang[1])
+		return _strdup(bang + 1);
+	/* unpackaged apps: "{FOLDERID}\path\program.exe" -> "program" */
+	const char *slash = strrchr(aumid, '\\');
+	if (slash) {
+		char *r = _strdup(slash + 1);
+		size_t n = strlen(r);
+		if (n > 4 && !_stricmp(r + n - 4, ".exe"))
+			r[n - 4] = 0;
+		return r;
+	}
+	const char *dot = strrchr(aumid, '.');
+	if (dot && dot[1] && strlen(dot + 1) > 1)
+		return _strdup(dot + 1);
+	return _strdup(aumid);
+}
+
+static char wpn_path[MAX_PATH * 3];
+
+static void windows_store_path(void)
+{
+	PWSTR base = NULL;
+	if (FAILED(SHGetKnownFolderPath(&FOLDERID_LocalAppData, 0, NULL, &base)))
+		return;
+	char *b8 = wn_utf8(base);
+	CoTaskMemFree(base);
+	snprintf(wpn_path, sizeof wpn_path, "%s\\Microsoft\\Windows\\Notifications\\wpndatabase.db", b8);
+	free(b8);
+}
+
+static bool windows_known(long long wid)
+{
+	EnterCriticalSection(&db_lock);
+	sqlite3_stmt *st = prep("SELECT 1 FROM windows_toasts WHERE windows_id = ?1");
+	sqlite3_bind_int64(st, 1, wid);
+	bool r = sqlite3_step(st) == SQLITE_ROW;
+	sqlite3_finalize(st);
+	LeaveCriticalSection(&db_lock);
+	return r;
+}
+
+/* One pass: import new toasts, close the ones that left the store.
+ * Returns the number imported, -1 if the store could not be read. */
+static int windows_sync(void)
+{
+	sqlite3 *w;
+	if (sqlite3_open_v2(wpn_path, &w, SQLITE_OPEN_READONLY, NULL) != SQLITE_OK) {
+		sqlite3_close(w);
+		return -1;
+	}
+	sqlite3_busy_timeout(w, 2000);
+	sqlite3_stmt *st;
+	if (sqlite3_prepare_v2(w,
+			       "SELECT n.Id, h.PrimaryId, n.ArrivalTime, n.Payload FROM Notification n"
+			       " JOIN NotificationHandler h ON h.RecordId = n.HandlerId"
+			       " WHERE n.Type = 'toast' ORDER BY n.ArrivalTime",
+			       -1, &st, NULL) != SQLITE_OK) {
+		fprintf(stderr, "notifyd: unexpected wpndatabase schema: %s\n", sqlite3_errmsg(w));
+		sqlite3_close(w);
+		return -1;
+	}
+	int imported = 0;
+	size_t present_n = 0, present_cap = 64;
+	long long *present = malloc(present_cap * sizeof *present);
+	while (sqlite3_step(st) == SQLITE_ROW) {
+		long long wid = sqlite3_column_int64(st, 0);
+		if (present_n == present_cap)
+			present = realloc(present, (present_cap *= 2) * sizeof *present);
+		present[present_n++] = wid;
+		if (windows_known(wid))
+			continue;
+
+		const char *aumid = (const char *)sqlite3_column_text(st, 1);
+		long long ft = sqlite3_column_int64(st, 2);
+		long long arrival_ms = ft / 10000 - 11644473600000LL;
+		int plen = sqlite3_column_bytes(st, 3);
+		char *xml = malloc((size_t)plen + 1);
+		memcpy(xml, sqlite3_column_blob(st, 3), (size_t)plen);
+		xml[plen] = 0;
+
+		struct toast t;
+		toast_parse(xml, &t);
+		char *name = aumid_name(aumid ? aumid : "windows");
+		char widbuf[32], arrbuf[32];
+		snprintf(widbuf, sizeof widbuf, "%lld", wid);
+		snprintf(arrbuf, sizeof arrbuf, "%lld", arrival_ms);
+
+		wn_notify n = {0};
+		n.app_name = name;
+		n.app_icon = t.icon;
+		n.summary = t.summary;
+		n.body = t.body;
+		n.expire_timeout = -1;
+		wn_add_hint(&n, "x-source", "s", "windows");
+		wn_add_hint(&n, "x-windows-aumid", "s", aumid ? aumid : "");
+		wn_add_hint(&n, "x-windows-id", "x", widbuf);
+		wn_add_hint(&n, "x-windows-arrival-ms", "x", arrbuf);
+		wn_add_hint(&n, "x-windows-payload", "s", xml);
+
+		struct client cl = {0};
+		snprintf(cl.exe, sizeof cl.exe, "windows-toast:%s", aumid ? aumid : "");
+		bool replace;
+		record_notify(&n, &cl, &replace, wid, arrival_ms);
+		imported++;
+
+		/* wn_notify_free would free name/icon/summary/body too: they are ours */
+		wn_notify_free(&n);
+		free(xml);
+	}
+	sqlite3_finalize(st);
+	sqlite3_close(w);
+
+	/* toasts that left the store */
+	EnterCriticalSection(&db_lock);
+	sqlite3_stmt *op = prep("SELECT windows_id, notification_id FROM windows_toasts WHERE open = 1");
+	size_t gone_n = 0, gone_cap = 16;
+	long long (*gone)[2] = malloc(gone_cap * sizeof *gone);
+	while (sqlite3_step(op) == SQLITE_ROW) {
+		long long wid = sqlite3_column_int64(op, 0);
+		bool found = false;
+		for (size_t i = 0; i < present_n && !found; i++)
+			found = present[i] == wid;
+		if (!found) {
+			if (gone_n == gone_cap)
+				gone = realloc(gone, (gone_cap *= 2) * sizeof *gone);
+			gone[gone_n][0] = wid;
+			gone[gone_n][1] = sqlite3_column_int64(op, 1);
+			gone_n++;
+		}
+	}
+	sqlite3_finalize(op);
+	for (size_t i = 0; i < gone_n; i++) {
+		sqlite3_stmt *u = prep("UPDATE windows_toasts SET open = 0 WHERE windows_id = ?1");
+		sqlite3_bind_int64(u, 1, gone[i][0]);
+		sqlite3_step(u);
+		sqlite3_finalize(u);
+	}
+	LeaveCriticalSection(&db_lock);
+	for (size_t i = 0; i < gone_n; i++)
+		close_notification((unsigned int)gone[i][1], WN_CLOSE_UNDEFINED);
+	free(gone);
+	free(present);
+	return imported;
+}
+
+static DWORD WINAPI windows_watch(LPVOID arg)
+{
+	(void)arg;
+	wchar_t *dir = wn_wide(wpn_path);
+	wchar_t *slash = wcsrchr(dir, L'\\');
+	if (slash)
+		*slash = 0;
+	HANDLE ch = FindFirstChangeNotificationW(dir, FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_SIZE);
+	free(dir);
+	int n = windows_sync();
+	fprintf(stderr, "notifyd: windows toasts: %d imported from %s\n", n, wpn_path);
+	for (;;) {
+		/* Directory notifications for the WAL are lazy (an open file's size and
+		 * mtime are not flushed to the directory on every write): they only
+		 * shorten the wait. The 2 s poll is what guarantees freshness. */
+		if (ch != INVALID_HANDLE_VALUE) {
+			WaitForSingleObject(ch, 2000);
+			FindNextChangeNotification(ch);
+			Sleep(300); /* let the service finish its transaction */
+		} else {
+			Sleep(5000);
+		}
+		windows_sync();
+	}
+}
+
 /* ---- daemon ----------------------------------------------------------------- */
 
 static HANDLE quit_ev;
+static bool watch_windows;
 static BOOL WINAPI on_ctrl(DWORD t)
 {
 	(void)t;
@@ -754,6 +1108,7 @@ static BOOL WINAPI on_ctrl(DWORD t)
 static int run_daemon(const char *db_path)
 {
 	db_open(db_path, false);
+	fts_setup();
 	InitializeCriticalSection(&db_lock);
 	InitializeCriticalSection(&shown_lock);
 	InitializeCriticalSection(&fwd_lock);
@@ -776,6 +1131,10 @@ static int run_daemon(const char *db_path)
 
 	if (mode == MODE_FORWARD)
 		CloseHandle(CreateThread(NULL, 0, forward_signals, NULL, 0, NULL));
+	if (watch_windows) {
+		windows_store_path();
+		CloseHandle(CreateThread(NULL, 0, windows_watch, NULL, 0, NULL));
+	}
 
 	quit_ev = CreateEventW(NULL, TRUE, FALSE, NULL);
 	SetConsoleCtrlHandler(on_ctrl, TRUE);
@@ -820,7 +1179,11 @@ static int cmd_history(int argc, char **argv)
 		else
 			die("history: unknown argument %s", argv[i]);
 	}
-	sqlite3_stmt *st = prep(
+	bool use_fts = search && fts_compiled() && fts_table_exists();
+	if (search && !use_fts)
+		fprintf(stderr, "notifyd: no FTS5 index, searching with LIKE\n");
+	char sql[2048];
+	snprintf(sql, sizeof sql, "%s%s%s",
 		"SELECT id, last_ts, app_name, summary, body, urgency, close_reason, action_invoked, revision,"
 		" json_object('id', id, 'first_ts', first_ts, 'last_ts', last_ts, 'revision', revision,"
 		"  'app_name', app_name, 'app_icon', app_icon, 'summary', summary, 'body', body,"
@@ -829,16 +1192,18 @@ static int cmd_history(int argc, char **argv)
 		"  'client_exe', client_exe, 'closed_ts', closed_ts, 'close_reason', close_reason,"
 		"  'action_invoked', action_invoked)"
 		" FROM notifications"
-		" WHERE (?1 IS NULL OR app_name = ?1)"
-		"   AND (?2 IS NULL OR summary LIKE '%' || ?2 || '%' OR body LIKE '%' || ?2 || '%')"
+		" WHERE (?1 IS NULL OR app_name = ?1) AND ",
+		use_fts ? "(?2 IS NULL OR id IN (SELECT rowid FROM notifications_fts WHERE notifications_fts MATCH ?2))"
+			: "(?2 IS NULL OR summary LIKE '%' || ?2 || '%' OR body LIKE '%' || ?2 || '%')",
 		" ORDER BY last_ts DESC, id DESC LIMIT ?3");
+	sqlite3_stmt *st = prep(sql);
 	bind_text_or_null(st, 1, app);
 	bind_text_or_null(st, 2, search);
 	sqlite3_bind_int(st, 3, limit);
 	if (json)
 		printf("[");
-	int first = 1;
-	while (sqlite3_step(st) == SQLITE_ROW) {
+	int first = 1, rc;
+	while ((rc = sqlite3_step(st)) == SQLITE_ROW) {
 		if (json) {
 			printf("%s%s", first ? "" : ",", col(st, 9));
 		} else {
@@ -857,6 +1222,11 @@ static int cmd_history(int argc, char **argv)
 	}
 	if (json)
 		printf("]\n");
+	if (rc != SQLITE_DONE) { /* e.g. FTS5 syntax error in --search */
+		fprintf(stderr, "notifyd: query failed: %s\n", sqlite3_errmsg(db));
+		sqlite3_finalize(st);
+		return 1;
+	}
 	sqlite3_finalize(st);
 	return 0;
 }
@@ -944,8 +1314,10 @@ static int cmd_tail(void)
 static void usage(void)
 {
 	puts("notifyd " NOTIFYD_VERSION " - persistent notification daemon (wnotify + SQLite)\n\n"
-	     "  notifyd [--db PATH] [--exec CMD | --forward PIPE]   run the daemon\n"
-	     "  notifyd [--db PATH] history [-n N] [--app APP] [--search TEXT] [--json]\n"
+	     "  notifyd [--db PATH] [--exec CMD | --forward PIPE] [--windows]   run the daemon\n"
+	     "      --windows  also record the toasts of every Windows app\n"
+	     "  notifyd [--db PATH] history [-n N] [--app APP] [--search QUERY] [--json]\n"
+	     "      QUERY is FTS5 syntax when available (words, \"phrases\", prefix*, AND/OR/NOT)\n"
 	     "  notifyd [--db PATH] show ID\n"
 	     "  notifyd [--db PATH] events [-n N] [--since SEQ]\n"
 	     "  notifyd [--db PATH] stats\n"
@@ -969,6 +1341,8 @@ int wmain(int wargc, wchar_t **wargv)
 		} else if (!strcmp(argv[i], "--exec") && i + 1 < wargc) {
 			mode = MODE_EXEC;
 			exec_cmd = wargv[++i];
+		} else if (!strcmp(argv[i], "--windows")) {
+			watch_windows = true;
 		} else if (!strcmp(argv[i], "--forward") && i + 1 < wargc) {
 			mode = MODE_FORWARD;
 			wcsncpy(forward_pipe, wargv[++i], 255);

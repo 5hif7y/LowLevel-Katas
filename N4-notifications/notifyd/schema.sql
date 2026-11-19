@@ -59,7 +59,17 @@ CREATE TABLE IF NOT EXISTS images (
     pixels          BLOB NOT NULL
 );
 
-PRAGMA user_version = 1;
+-- Toasts imported from Windows' own notification store (notifyd --windows).
+-- windows_id is Notification.Id in %LOCALAPPDATA%\Microsoft\Windows\Notifications\wpndatabase.db
+CREATE TABLE IF NOT EXISTS windows_toasts (
+    windows_id      INTEGER PRIMARY KEY,
+    notification_id INTEGER NOT NULL,
+    aumid           TEXT,
+    arrival_ts      INTEGER,
+    open            INTEGER NOT NULL DEFAULT 1  -- 0 once it left the Windows store
+);
+
+PRAGMA user_version = 2;
 
 -- REBUILD (manual): the projection can be recomputed from the log, e.g.
 --   SELECT notification_id, kind, json_extract(data,'$.summary') FROM events ORDER BY seq;
