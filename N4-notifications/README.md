@@ -39,6 +39,10 @@ Los forks viven fuera de este repo (`DEV/gitclones/*`), cada uno con su rama de
 port; cada port trae una copia de `wnotify.c/.h`. La copia canónica es la de
 este directorio.
 
+## Tests
+
+[`tests/run-tests.ps1`](tests/) — 65 pruebas end-to-end de todos los ports y de notifyd, incluido el soporte de íconos (ruta, `file://`, `image-path`, `image-data`, toasts) verificado por captura de pantalla.
+
 ## La guía de porteo
 
 Lo aprendido está en la guía general, a continuación de los módulos de
