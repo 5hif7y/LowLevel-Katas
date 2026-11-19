@@ -23,6 +23,12 @@ Esta guía está estructurada en módulos secuenciales y temáticos:
 | **11** | [Procesos, IPC y Transporte](11-procesos-ipc-y-transporte.md) | `fork`/`exec` vs `CreateProcess`, pipes y handles heredados, `socketpair` sobre loopback, pump threads, `WSAPoll`, `waitpid`, transporte SSH. |
 | **12** | [Paths, `argv` y Unicode](12-paths-argv-y-unicode.md) | Namespace `/c/...` y `/unc/...`, normalización antes de `host:path`, quoting de `CreateProcess`, `CP_ACP` vs `CP_UTF8`, long paths. |
 | **13** | [Matriz de Porteo, Seguridad y Build](13-matriz-de-porteo-seguridad-y-build.md) | Checklist, pruebas de >2 GB/Unicode/UNC/pipes, symlinks y TOCTOU, ACLs, CMake reusable y `vswhere`. |
+| **14** | [D-Bus en Windows: Notificaciones sobre Named Pipes](14-dbus-en-windows-notificaciones-sobre-named-pipes.md) | Bus de sesión → pipe por SessionId, `FILE_FLAG_FIRST_PIPE_INSTANCE` como dueño del nombre, overlapped I/O vs deadlock por handle, señales, PID del emisor, daemons encadenados. |
+| **15** | [Ventanas sin X11: herbe y Backends Win32](15-ventanas-sin-x11-herbe-y-backends-win32.md) | `override_redirect` → `WS_EX_*` + `MA_NOACTIVATE`, work area, DPI, ventanas layered con cairo premultiplicado, `G_WIN32_MSG_HANDLE`, señales → eventos/`WM_CLOSE`, semáforo → mutex `WAIT_ABANDONED`, subsistema consola. |
+| **16** | [Arqueología de un Porteo: tiramisu C → Vala → Odin](16-arqueologia-tiramisu-c-vala-odin.md) | Encontrar el corte en `git log`, tres generaciones de features, interpolación secuencial como inyección, JSON válido, mapeo Vala/GLib → Odin. |
+| **17** | [Porteo de un Proyecto GLib: dunst](17-porteo-de-un-proyecto-glib-dunst.md) | Dependencias con vcpkg, headers de compatibilidad (`regex.h` sobre GRegex, `fnmatch`, `wordexp`, `scandir`), shim de GDBus por macros, marshalling al main loop, `fork` → `g_spawn`. |
+
+> Los módulos 14–17 salen de la kata [`N4-notifications`](../../../N4-notifications/README.md): ports de dunst, herbe y tiramisu, y un daemon con historial SQLite.
 
 ---
 
