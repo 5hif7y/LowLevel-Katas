@@ -235,4 +235,4 @@ notifyd.exe history --app Portmaster
 
 ---
 
-Anterior: [24](24-compatibilidad-binaria-con-go.md) · Auditoría de features de pago: [N6](../../../N6-portmaster/AUDITORIA-features-de-pago.md).
+Anterior: [24](24-compatibilidad-binaria-con-go.md) · Siguiente: [26](26-etapa-2-http-tls-y-firmas-sin-stdlib.md) · Auditoría de features de pago: [N6](../../../N6-portmaster/AUDITORIA-features-de-pago.md).

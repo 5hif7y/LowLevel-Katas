@@ -40,7 +40,7 @@ Kata en tres partes:
 | Etapa | Contenido | Estado |
 |---|---|---|
 | 1 | `base/` (log, utils, rng, info, database completo, config, runtime, notifications), `safing/structures`, `service/mgr` | ✔ (fork `cca812e4`, `f9c61ee7`, `ef10cbcc`) — ~180 tests |
-| 2 | base/api, metrics, service/core, updates, broadcasts, status, sync, ui | ☐ |
+| 2 | base/api (+ HTTP/websocket propios), metrics, template, apprise, safing/jess, service/core, ui, status, control, broadcasts, updates, configure, sync | ✔ (fork `f057d0f7`, `8e94e41f`, `c29a1894`, `ec014989`) — dependencias de etapas 3–6 como hooks en `deps.odin` |
 | 3 | firewall en Windows: interfaz con el kext, network, process, netenv, profile, firewall | ☐ |
 | 4 | resolver, nameserver, intel, **netquery** (History + Bandwidth), splittun | ☐ |
 | 5 | SPN (`safing/jess` + `spn/*` + `cmds/hub`) — prueba con red propia en VPS | ☐ |
@@ -67,4 +67,5 @@ odin test odin/base/notifications -collection:pm=odin -define:PM_NOTIFYD=<LowLev
 | [22](../N1-coreutils/Docs/porter-guide/22-go-a-odin-mapa-del-lenguaje.md) | Go → Odin: errores, interfaces → vtables, `interface{}` → uniones, closures, nombres prohibidos, memoria sin GC |
 | [23](../N1-coreutils/Docs/porter-guide/23-concurrencia-sin-goroutines.md) | Concurrencia: pool elástico, `select` → mutex+cond, el bug de los canales sin buffer, `context.Context`, sin `recover`, refcount, bugs de Go encontrados |
 | [24](../N1-coreutils/Docs/porter-guide/24-compatibilidad-binaria-con-go.md) | Mismos bytes que Go: dsd, JSON/CBOR, meta gencode, SQLite, config.json |
-| [25](../N1-coreutils/Docs/porter-guide/25-notificaciones-persistentes-portmaster-notifyd.md) | Notificaciones de Portmaster como historial en notifyd |
+| [25](../N1-coreutils/Docs/porter-guide/25-notificaciones-persistentes-portmaster-notifyd.md) | Notificaciones: historial completo local + las importantes en notifyd |
+| [26](../N1-coreutils/Docs/porter-guide/26-etapa-2-http-tls-y-firmas-sin-stdlib.md) | Etapa 2: HTTP/websocket propios, TLS por WinHTTP, jess, hooks hacia etapas futuras |
