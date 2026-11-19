@@ -9,3 +9,7 @@ PORT-TODO: CLI; KeyringTrustStore (Credential Manager); RSA > 4096 bits (límite
 Desajustes Go ↔ core:crypto: clave privada ed25519 de Go = seed‖pub (64 B) vs seed de 32 B; secretos ECDH NIST de Go sin ceros a la izquierda (big.Int.Bytes) vs ancho fijo — alimenta HKDF, importa para compatibilidad; ecdh.ecdh rechaza salidas X25519 todo-cero y Go no → scalarmult directo; PSS "auto" salt vs explícito; sin x509.
 Trampas: GC → arena por sesión + arena scratch; defer registrado después de un return temprano nunca corre; `ecdh` choca con core:crypto/ecdh → jess_ecdh; string apuntando a un Error pasado por valor queda colgando; un typo en el primo de P-521 lo encontraron los vectores.
 Quirks de Go conservados: el cliente wire nunca sale de SendApply (el rekey no ocurre); SelectSignets devuelve nil en el primer mismatch; recipients=false se arrastra; CryptoHashID de BLAKE2s = BLAKE2b_256.
+
+## Arreglos posteriores (fork 33117723)
+- Tiempos: parse_time_rfc3339 usa pm:lib/gotime (core:time leía 2 dígitos de fracción).
+- Carrera: suites() devolvía una vista de suites_list; un register_suite concurrente la realocaba → segfault intermitente en test_core_basic (5/6). Ahora copia bajo lock; 10/10 con 4 hilos.

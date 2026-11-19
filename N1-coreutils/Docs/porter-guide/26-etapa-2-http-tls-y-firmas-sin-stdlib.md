@@ -83,8 +83,37 @@ opcional).
 
 Un bug del port que encontraron los tests de updates: `core:time` parsea
 RFC3339 leyendo **exactamente dos** dígitos de fracción, así que rechaza
-`.6Z` y trunca `.1234567Z` en silencio. Go acepta 0–9 dígitos. updates usa su
-propio parser estricto; jess todavía no (abierto en `STAGES.md`).
+`.6Z` y trunca `.1234567Z` en silencio (deja el resto sin consumir). Go acepta
+0–9 dígitos. No era sólo jess: las cookies de sesión de la API y el estado de
+`broadcasts` usaban el mismo parser. Arreglo: `odin/lib/gotime` (parser
+estricto con la semántica de Go, string completo consumido, offsets en rango),
+usado en los cuatro lugares; el test fija la diferencia con `core:time` para
+notar si algún día se corrige upstream.
+
+### Una vista de una lista global no es una copia
+
+Corriendo de nuevo los tests de jess apareció un segfault intermitente en
+`test_core_basic` (5 de 6 corridas, **también en la versión ya commiteada**:
+la verificación anterior había pasado de casualidad).
+
+```odin
+suites :: proc() -> []^Suite {
+	sync.shared_guard(&suites_mu)
+	return suites_list[:]        // vista del [dynamic] global
+}
+```
+
+Otro test registraba una suite en paralelo; `append` realocaba
+`suites_list` y liberaba el buffer viejo mientras el primero seguía iterando
+la vista. En Go el mismo código es correcto: `return suitesList` copia el
+header del slice y el GC mantiene vivo el array viejo. El equivalente fiel en
+Odin es **devolver una copia tomada bajo el lock** (los `^Suite` en sí nunca
+se liberan). Regla general para el resto del port: cualquier proc que devuelva
+`arr[:]` o un `map` de estado global mutable necesita una copia o un contrato
+explícito de "sólo se escribe en `@(init)`".
+
+Y una lección de proceso: un test que pasa una vez no prueba nada sobre una
+carrera. Los barridos de esta etapa se corren varias veces seguidas.
 
 ## 5. Dependencias hacia adelante: hooks explícitos
 
@@ -137,6 +166,8 @@ separador y escape a la vez, el error envuelto nil de `CheckSHA256`, el
   exports (de Go y del port) citan los valores ambiguos, sólo afecta YAML
   escrito a mano.
 * RSA > 4096 bits y algunos hashes para OAEP/PSS: límites de `core:crypto`.
+
+Estado al cerrar la etapa: 61 paquetes con tests, todos verdes (fork `33117723`).
 
 ---
 
