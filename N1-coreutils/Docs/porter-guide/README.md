@@ -27,6 +27,12 @@ Esta guía está estructurada en módulos secuenciales y temáticos:
 | **15** | [Ventanas sin X11: herbe y Backends Win32](15-ventanas-sin-x11-herbe-y-backends-win32.md) | `override_redirect` → `WS_EX_*` + `MA_NOACTIVATE`, work area, DPI, ventanas layered con cairo premultiplicado, `G_WIN32_MSG_HANDLE`, señales → eventos/`WM_CLOSE`, semáforo → mutex `WAIT_ABANDONED`, subsistema consola. |
 | **16** | [Arqueología de un Porteo: tiramisu C → Vala → Odin](16-arqueologia-tiramisu-c-vala-odin.md) | Encontrar el corte en `git log`, tres generaciones de features, interpolación secuencial como inyección, JSON válido, mapeo Vala/GLib → Odin. |
 | **17** | [Porteo de un Proyecto GLib: dunst](17-porteo-de-un-proyecto-glib-dunst.md) | Dependencias con vcpkg, headers de compatibilidad (`regex.h` sobre GRegex, `fnmatch`, `wordexp`, `scandir`), shim de GDBus por macros, marshalling al main loop, `fork` → `g_spawn`. |
+| **22** | [Go → Odin: el mapa del lenguaje](22-go-a-odin-mapa-del-lenguaje.md) | Errores como enum/union, interfaces → vtables, `interface{}` → uniones, closures → proc+`rawptr`, nombres prohibidos, memoria sin GC. |
+| **23** | [Concurrencia sin goroutines](23-concurrencia-sin-goroutines.md) | Pool elástico, `select` → mutex+cond, canales sin buffer rotos con varios emisores, `context.Context`, sin `recover`, refcount, bugs de Go hallados. |
+| **24** | [Compatibilidad binaria con Go](24-compatibilidad-binaria-con-go.md) | dsd, JSON/CBOR con reglas de Go, meta gencode de 34 bytes, mismo `db.sqlite`, `config.json` byte a byte. |
+| **25** | [Notificaciones que no se olvidan](25-notificaciones-persistentes-portmaster-notifyd.md) | Portmaster → notifyd: mapeo, `replace` por cambio de estado, pipe síncrono que bloquea escrituras, carreras del puente, reconexión. |
+
+> Los módulos 22–25 salen de la kata [`N6-portmaster`](../../../N6-portmaster/README.md): port de Portmaster de Go a Odin.
 
 > Los módulos 14–17 salen de la kata [`N4-notifications`](../../../N4-notifications/README.md): ports de dunst, herbe y tiramisu, y un daemon con historial SQLite.
 
