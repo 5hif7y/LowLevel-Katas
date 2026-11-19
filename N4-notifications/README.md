@@ -33,7 +33,7 @@ Kata en dos partes:
 | tiramisu C (2021) → MSVC | fork `Sweets/tiramisu`, rama `port/c-msvc` | ✔ |
 | tiramisu Vala → Odin | fork `Sweets/tiramisu`, rama `port/odin` | ✔ |
 | herbed-tiramisu → PowerShell | fork `mertoalex/herbed-tiramisu`, rama `port/windows` | ✔ |
-| dunst → Win32 + cairo/pango (vcpkg) | fork `dunst-project/dunst`, rama `port/windows` | ver [estado](#estado-de-dunst) |
+| dunst → Win32 + cairo/pango (vcpkg) | fork `dunst-project/dunst`, rama `port/windows` | ✔ (ver `WINDOWS.md` del fork) |
 
 Los forks viven fuera de este repo (`DEV/gitclones/*`), cada uno con su rama de
 port; cada port trae una copia de `wnotify.c/.h`. La copia canónica es la de
@@ -64,6 +64,13 @@ notifyd\build.bat        :: notifyd.exe (+ sqlite3.dll de vcpkg)
 .\notifyd\notifyd.exe history
 ```
 
-## Estado de dunst
+## dunst como pantalla de notifyd
 
-Ver [`notifyd/README.md`](notifyd/README.md#dunst) y el módulo 17.
+```powershell
+$env:WNOTIFY_PIPE='\\.\pipe\dunst-down'; Start-Process dunst.exe
+Remove-Item Env:WNOTIFY_PIPE
+notifyd.exe --forward \\.\pipe\dunst-down --windows
+```
+
+Las apps hablan con notifyd (que guarda todo, incluidos los toasts de
+Windows) y dunst dibuja. Detalle del port en el módulo 17.

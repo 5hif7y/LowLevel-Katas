@@ -139,7 +139,7 @@ Script de prueba (PowerShell) contra una base temporal:
 
 ## dunst
 
-El port de dunst (rama `port/windows` del fork) usa este mismo protocolo, así
-que `notifyd --forward` funciona con dunst como pantalla. dunst ya tiene su
-propio historial en memoria (`dunstctl history`); `notifyd` es el que
-sobrevive reinicios.
+El port de dunst (rama `port/windows` del fork) habla este mismo protocolo, así
+que `notifyd --forward` funciona con dunst como pantalla. dunst tiene su propio
+historial en memoria (`dunstctl history`); `notifyd` es el que sobrevive
+reinicios.
