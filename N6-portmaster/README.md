@@ -10,8 +10,10 @@ Kata en tres partes:
 2. **Auditar** las tres features "de pago" (Network History, Bandwidth, SPN):
    [AUDITORIA-features-de-pago.md](AUDITORIA-features-de-pago.md).
 3. Sobre el port, hacer que las notificaciones de Portmaster **no sean
-   efímeras**: cada una se manda a `notifyd` (kata [N4](../N4-notifications/))
-   y queda como historial de eventos en SQLite.
+   efímeras**, en dos niveles: Portmaster guarda **todo** su historial en su
+   propia base (`notifications-history`, SQLite, eventos append-only), y sólo
+   las **importantes** (política `core/notifications/globalPolicy`) se mandan
+   al historial global del sistema, `notifyd` (kata [N4](../N4-notifications/)).
 
 ```
   Portmaster (Odin)                      notifyd (N4, C + SQLite)

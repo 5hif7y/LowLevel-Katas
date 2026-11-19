@@ -28,7 +28,75 @@ difícil y lo resuelve para **todas** las apps, no sólo Portmaster:
 Portmaster pasa a ser un cliente wnotify más. Lo que tiene que resolver el
 puente es **el mapeo**.
 
-## 2. El mapeo
+## 1b. Diseño híbrido: dos historiales, dos alcances
+
+La primera versión mandaba **todas** las notificaciones a notifyd. Tenía un
+problema de alcance: notifyd es el historial **del sistema** (todas las apps,
+toasts de Windows incluidos), y Portmaster produce mucho ruido local (avisos
+de configuración, info de updates) que no justifica estar ahí. La versión
+actual separa:
+
+| Historial | Dónde | Qué guarda |
+|---|---|---|
+| **Local, completo** | base `notifications-history` de Portmaster (storage `sqlite` de la capa de base de datos portada) | **todo**: un evento append-only por cada cosa que le pasa a cada notificación |
+| **Global, filtrado** | notifyd (N4) | sólo las notificaciones que la política considera importantes |
+
+### El historial local
+
+Clave: `notifications-history:events/<EventID escapado>/<unix-nanos %020d>-<seq %06d>`.
+Un prefix query devuelve la línea de tiempo de **una** notificación en orden;
+el escape (`%`→`%25`, `/`→`%2F`) evita que `config:validation-error:filter/enable`
+matchee como prefijo de otra.
+
+Eventos: `created`, `updated`, `state_changed` (con `PrevState`),
+`action_selected` (con `Source`: `ui` por un put de la base, `system` por un
+`ActionInvoked` de notifyd, `api`), `expired`, `deleted`, `dismissed`,
+`forwarded_global` (con el id de notifyd). Cada registro lleva una foto
+completa de la notificación. Un re-save idéntico no registra nada (hash
+fnv64a de la foto). La escritura no bloquea: el caller serializa la foto bajo
+el lock de la notificación y la encola; un hilo escritor hace los `put`.
+
+Retención: `core/notifications/historyRetentionDays`, por defecto **0 =
+para siempre**; con > 0 un worker `Repeat` llama a `purge_older_than`.
+
+Línea de tiempo real de un prompt en el test e2e:
+
+```
+created          active                      global=true  Prompt  icon=pm_light_128.png
+forwarded_global active                      notifyd=2
+action_selected  responded  source=system  action=allow
+state_changed    responded  prev=active
+state_changed    executed   prev=responded
+deleted          executed   source=api
+```
+
+### La política global
+
+`core/notifications/globalPolicy`:
+
+| Valor | Va a notifyd |
+|---|---|
+| `important` (defecto) | Error, Warning, Prompt, o `ShowOnSystem` |
+| `all` | todo |
+| `errors` | sólo Error |
+| `none` | nada |
+
+Más un override por notificación, `Global: Auto | Always | Never` (`Always`
+pasa con cualquier política, `Never` bloquea incluso con `all`).
+
+La decisión es **pegajosa**: una notificación que fue elegible manda después
+todos sus `replace` y su `close` aunque ya no lo sea, para que el registro
+global quede coherente; una que nunca lo fue no aparece en notifyd en
+absoluto (ni `Notify` ni `CloseNotification`). En el e2e, con `important`,
+las dos Info normales están en el historial local y **ausentes** de
+`events.data` de notifyd; el prompt, la Warning y la Info con `Always` están
+en los dos.
+
+Orden dentro de `save`: decidir la política → registrar en el historial →
+encolar para notifyd. Al revés, el hilo emisor alcanzaba a registrar
+`forwarded_global` antes que `created`.
+
+## 2. El mapeo (lo que se manda a notifyd)
 
 | Portmaster | wnotify / notifyd |
 |---|---|
@@ -38,16 +106,16 @@ puente es **el mapeo**.
 | `Type` Info / Warning / Prompt / Error | `urgency` 0 / 1 / 2 / 2; `category` `portmaster.<tipo o Category>` |
 | `AvailableActions` | `actions` planas `ID, Text, ...` (todas, incluso `in-app-only`) + hint `x-portmaster-actions` con tipo, payload y visibilidad en JSON |
 | `State`, `SelectedActionID`, `Expires`, `GUID`, `EventData` | hints `x-portmaster-*` |
-| `ShowOnSystem && useSystemNotifications` | hint `x-portmaster-show-on-system`: **se manda igual**; el display decide si la muestra |
+| `ShowOnSystem && useSystemNotifications` | hint `x-portmaster-show-on-system`: el display decide si la muestra (si la política la dejó pasar) |
 | Prompt | `expire_timeout` 0 (nunca); con `Expires`: ms restantes; si no, -1 |
 | ícono | `app_icon` **e** `image-path` = `assets/data/icons/pm_light_128.png` absoluto (configurable con `-define:PM_NOTIFICATION_ICON=`) |
 | `Delete()` / expiración | `CloseNotification` → `close_request`, y `closed` cuando el display lo confirma |
 | `ActionInvoked <id> <key>` del display | `select_and_execute_action(key)` + `save` (→ `replace` con estado `executed`) |
 | `NotificationClosed` razón 2 (descartada) | se saca del conjunto en memoria, como el "dismiss" de la UI; el historial la conserva |
 
-La decisión clave es la fila de `ShowOnSystem`: en Go ese flag decide si la
-notificación sale del proceso. Acá **todas** salen, porque salir es lo que la
-persiste; mostrarla es otro problema.
+En Go `ShowOnSystem` decide si la notificación sale del proceso. Acá eso lo
+decide la política global (sección 1b); `ShowOnSystem` es uno de sus criterios
+y además viaja como hint para el display.
 
 ## 3. Lo que muestra el historial
 
@@ -123,8 +191,10 @@ retornaba temprano y dejaba un zombi en el mapa. Arreglo:
 * Una advertencia por corte, no una por notificación.
 * Un worker `Repeat` reintenta conectar; al volver, **reenvía las activas** y
   vacía los cierres que ocurrieron mientras tanto.
-* El test e2e lo cubre: una notificación creada antes de levantar notifyd
-  aparece en el historial como su primer `notify`.
+* Sólo se reenvían las elegibles por la política.
+* El test e2e lo cubre: una Warning creada antes de levantar notifyd aparece
+  en notifyd como su primer `notify` y en el historial local como
+  `created` → `forwarded_global` (después de reconectar).
 
 ## 6. Otros detalles del port
 
