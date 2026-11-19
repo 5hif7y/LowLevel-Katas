@@ -1,0 +1,211 @@
+diff --git a/ports/dtach/config.h b/ports/dtach/config.h
+new file mode 100644
+index 0000000..5a3f955
+--- /dev/null
++++ b/ports/dtach/config.h
+@@ -0,0 +1,8 @@
++/* config.h for dtach on Windows/MSVC (replaces autoconf's output). */
++#define PACKAGE_VERSION "0.9-win32"
++#define PACKAGE_BUGREPORT "crigler@gmail.com"
++#define RETSIGTYPE void
++#define HAVE_UNISTD_H 1
++#define HAVE_SYS_IOCTL_H 1
++#define HAVE_FORKPTY 1   /* we never compile the BSD fallbacks */
++#define HAVE_OPENPTY 1
+diff --git a/upstream/dtach/dtach.h b/ports/dtach/dtach.h
+index fd6b59c..b550c6a 100644
+--- a/upstream/dtach/dtach.h
++++ b/ports/dtach/dtach.h
+@@ -97,6 +97,10 @@ extern char *progname, *sockname;
+ extern int detach_char, no_suspend, redraw_method;
+ extern struct termios orig_term;
+ extern int dont_have_tty;
++#ifdef _WIN32
++/* WIN32: the full original argv, re-used to re-exec ourselves as master. */
++extern char **win32_argv;
++#endif
+ 
+ enum
+ {
+diff --git a/upstream/dtach/main.c b/ports/dtach/main.c
+index 7624ad3..31e885d 100644
+--- a/upstream/dtach/main.c
++++ b/ports/dtach/main.c
+@@ -44,6 +44,9 @@ int redraw_method = REDRAW_UNSPEC;
+ */
+ struct termios orig_term;
+ int dont_have_tty;
++#ifdef _WIN32
++char **win32_argv;
++#endif
+ 
+ /* Write buf to fd handling partial writes. Exit on failure. */
+ void
+@@ -133,6 +136,9 @@ main(int argc, char **argv)
+ 
+ 	/* Save the program name */
+ 	progname = argv[0];
++#ifdef _WIN32
++	win32_argv = argv;
++#endif
+ 	++argv; --argc;
+ 
+ 	/* Parse the arguments */
+@@ -276,6 +282,16 @@ main(int argc, char **argv)
+ 		return 1;
+ 	}
+ 
++#ifdef _WIN32
++	/* WIN32: we are the detached master that a dtach client re-executed
++	** instead of fork()ing (see master_main). No terminal, just serve. */
++	if (compat_daemon_role())
++	{
++		dont_have_tty = 1;
++		return master_main(argv, mode == 'c' || mode == 'A', 0);
++	}
++#endif
++
+ 	/* Save the original terminal settings. */
+ 	if (tcgetattr(0, &orig_term) < 0)
+ 	{
+diff --git a/upstream/dtach/master.c b/ports/dtach/master.c
+index 26ae694..2103ab1 100644
+--- a/upstream/dtach/master.c
++++ b/ports/dtach/master.c
+@@ -112,6 +112,25 @@ init_pty(char **argv, int statusfd)
+ 	the_pty.term = orig_term;
+ 	memset(&the_pty.ws, 0, sizeof(struct winsize));
+ 
++#ifdef _WIN32
++	/* WIN32: no fork(), so no "child branch" either. ConPTY spawns the
++	** program and gives us one selectable descriptor, like forkpty(). */
++	{
++		struct compat_spawn_opts o;
++
++		(void)statusfd;
++		memset(&o, 0, sizeof(o));
++		o.argv = (const char *const *)argv;
++		o.ws.ws_row = 25;
++		o.ws.ws_col = 80;
++		o.stdin_fd = o.stdout_fd = -1;
++		the_pty.pid = compat_spawn_pty(&o, &the_pty.fd);
++		if (the_pty.pid < 0)
++			return -1;
++		the_pty.ws = o.ws;
++		return 0;
++	}
++#endif
+ 	/* Create the pty process */
+ 	if (!dont_have_tty)
+ 		the_pty.pid = forkpty(&the_pty.fd, NULL, &the_pty.term, NULL);
+@@ -470,8 +489,17 @@ master_process(int s, char **argv, int waitattach, int statusfd)
+ 	{
+ 		if (statusfd != -1)
+ 			dup2(statusfd, 1);
++#ifdef _WIN32
++		if (errno == ENOENT)
++			printf("%s: could not execute %s: %s\n", progname,
++			       *argv, strerror(errno));
++		else if (errno == ENOSYS)
++			printf("%s: ConPTY needs Windows 10 1809 or newer.\n",
++			       progname);
++#else
+ 		if (errno == ENOENT)
+ 			printf("%s: Could not find a pty.\n", progname);
++#endif
+ 		else
+ 			printf("%s: init_pty: %s\n", progname, strerror(errno));
+ 		exit(1);
+@@ -566,16 +594,77 @@ master_process(int s, char **argv, int waitattach, int statusfd)
+ 	}
+ }
+ 
++#ifdef _WIN32
++/*
++** WIN32 replacement for the fork() below. The client re-executes its own
++** binary, detached from the console, with the same argv; the new process
++** sees compat_daemon_role() and becomes the master. The inherited status
++** pipe plays the role of the FD_CLOEXEC pipe: error text, or EOF once the
++** socket exists and the program is running.
++*/
++static int
++win32_spawn_master(void)
++{
++	char buf[1024];
++	ssize_t len;
++	int st;
++	pid_t pid;
++
++	pid = compat_spawn_self_detached("dtach-master",
++		(const char *const *)win32_argv, &st);
++	if (pid < 0)
++	{
++		printf("%s: spawn: %s\n", progname, strerror(errno));
++		return 1;
++	}
++	len = read(st, buf, sizeof(buf));
++	if (len > 0)
++	{
++		do
++		{
++			write_buf_or_fail(2, buf, len);
++			len = read(st, buf, sizeof(buf));
++		} while (len > 0);
++		kill(pid, SIGTERM);
++		close(st);
++		return 1;
++	}
++	close(st);
++	return 0;
++}
++#endif
++
+ int
+ master_main(char **argv, int waitattach, int dontfork)
+ {
+ 	int fd[2] = {-1, -1};
+ 	int s;
+ 	pid_t pid;
++#ifdef _WIN32
++	int statusfd = -1;
++#endif
+ 
+ 	/* Use a default redraw method if one hasn't been specified yet. */
+ 	if (redraw_method == REDRAW_UNSPEC)
++#ifdef _WIN32
++		/* ConPTY repaints the whole screen on a resize: "winch" is a
++		** real redraw here, while ^L would be typed into cmd.exe. */
++		redraw_method = REDRAW_WINCH;
++#else
+ 		redraw_method = REDRAW_CTRL_L;
++#endif
++
++#ifdef _WIN32
++	if (!compat_daemon_role() && !dontfork)
++		return win32_spawn_master();
++	if (compat_daemon_role())
++	{
++		/* Errors printed from here on travel to the waiting client. */
++		statusfd = compat_daemon_statusfd();
++		if (statusfd >= 0)
++			dup2(statusfd, 1);
++	}
++#endif
+ 
+ 	/* Create the unix domain socket. */
+ 	s = create_socket(sockname);
+@@ -611,6 +700,14 @@ master_main(char **argv, int waitattach, int dontfork)
+ 		return 1;
+ 	}
+ 
++#ifdef _WIN32
++	if (compat_daemon_role())
++	{
++		master_process(s, argv, waitattach, statusfd);
++		return 0;
++	}
++#endif
++
+ #if defined(F_SETFD) && defined(FD_CLOEXEC)
+ 	fcntl(s, F_SETFD, FD_CLOEXEC);
+ 

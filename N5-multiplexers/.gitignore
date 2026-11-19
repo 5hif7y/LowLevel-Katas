@@ -1,0 +1,8 @@
+# Upstream trees are reference material, rebuilt pinned by fetch-upstream.*
+upstream/
+build/
+tests/tmp/
+*.obj
+*.exe
+*.pdb
+*.ilk

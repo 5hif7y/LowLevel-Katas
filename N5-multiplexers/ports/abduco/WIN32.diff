@@ -1,0 +1,196 @@
+diff --git a/upstream/abduco/abduco.c b/ports/abduco/abduco.c
+index b56e6f4..466af21 100644
+--- a/upstream/abduco/abduco.c
++++ b/ports/abduco/abduco.c
+@@ -293,6 +293,10 @@ static bool create_socket_dir(struct sockaddr_un *sockaddr) {
+ 		if (dir->env) {
+ 			dir->path = getenv(dir->env);
+ 			ishome = !strcmp(dir->env, "HOME");
++#ifdef _WIN32
++		ishome = ishome || !strcmp(dir->env, "USERPROFILE") ||
++		         !strcmp(dir->env, "LOCALAPPDATA");
++#endif
+ 			if (ishome && (!dir->path || !dir->path[0]) && pw)
+ 				dir->path = pw->pw_dir;
+ 		}
+@@ -354,9 +358,15 @@ static bool create_socket_dir(struct sockaddr_un *sockaddr) {
+ static bool set_socket_name(struct sockaddr_un *sockaddr, const char *name) {
+ 	const size_t maxlen = sizeof(sockaddr->sun_path);
+ 	const char *session_name = NULL;
+-	char buf[maxlen];
++	char buf[sizeof(sockaddr->sun_path)]; /* WIN32: was a VLA buf[maxlen] */
+ 
++#ifdef _WIN32
++	/* absolute: C:\x, C:/x, \\server\share, /x */
++	if (name[0] == '/' || name[0] == '\\' ||
++	    (name[0] && name[1] == ':' && (name[2] == '/' || name[2] == '\\'))) {
++#else
+ 	if (name[0] == '/') {
++#endif
+ 		if (strlen(name) >= maxlen) {
+ 			errno = ENAMETOOLONG;
+ 			return false;
+@@ -390,6 +400,79 @@ static bool set_socket_name(struct sockaddr_un *sockaddr, const char *name) {
+ 	return true;
+ }
+ 
++#ifdef _WIN32
++static char **win32_argv;
++
++/* WIN32 server side: run in the process that create_session() spawned. */
++static void win32_server_main(const char *name, char * const argv[]) {
++	char errormsg[255];
++	int statusfd = compat_daemon_statusfd();
++	const char *ws = getenv("ABDUCO_WIN32_WINSIZE");
++	unsigned rows = 0, cols = 0;
++	if (ws && sscanf(ws, "%ux%u", &cols, &rows) == 2) {
++		server.winsize.ws_col = cols;
++		server.winsize.ws_row = rows;
++	}
++	unsetenv("ABDUCO_WIN32_WINSIZE");
++
++	if ((server.socket = server_create_socket(name)) == -1) {
++		snprintf(errormsg, sizeof(errormsg), "server-socket: %s\n", strerror(errno));
++		write_all(statusfd, errormsg, strlen(errormsg));
++		_exit(EXIT_FAILURE);
++	}
++	struct sigaction sa;
++	sa.sa_flags = 0;
++	sigemptyset(&sa.sa_mask);
++	sa.sa_handler = server_pty_died_handler;
++	sigaction(SIGCHLD, &sa, NULL);
++
++	struct compat_spawn_opts o;
++	memset(&o, 0, sizeof(o));
++	o.argv = (const char *const *)argv;
++	o.ws = server.winsize;
++	o.stdin_fd = o.stdout_fd = -1;
++	if ((server.pid = compat_spawn_pty(&o, &server.pty)) == -1) {
++		snprintf(errormsg, sizeof(errormsg), "server-execvp: %s: %s\n",
++		         argv[0], strerror(errno));
++		write_all(statusfd, errormsg, strlen(errormsg));
++		unlink(sockaddr.sun_path);
++		_exit(EXIT_FAILURE);
++	}
++	sa.sa_handler = server_sigterm_handler;
++	sigaction(SIGTERM, &sa, NULL);
++	sigaction(SIGINT, &sa, NULL);
++	sa.sa_handler = SIG_IGN;
++	sigaction(SIGPIPE, &sa, NULL);
++	sigaction(SIGHUP, &sa, NULL);
++	close(statusfd); /* EOF = success for the waiting client */
++	server_mainloop();
++}
++
++/* WIN32 client side: replaces the fork()/setsid()/fork()/forkpty() dance. */
++static bool create_session(const char *name, char * const argv[]) {
++	char errormsg[255], ws[32];
++	int status_rd;
++	(void)argv;
++	if (session_exists(name)) {
++		errno = EADDRINUSE;
++		return false;
++	}
++	snprintf(ws, sizeof ws, "%ux%u", server.winsize.ws_col, server.winsize.ws_row);
++	setenv("ABDUCO_WIN32_WINSIZE", ws, 1);
++	pid_t pid = compat_spawn_self_detached("abduco-server",
++	                                       (const char *const *)win32_argv, &status_rd);
++	unsetenv("ABDUCO_WIN32_WINSIZE");
++	if (pid == -1)
++		return false;
++	ssize_t len = read_all(status_rd, errormsg, sizeof(errormsg));
++	close(status_rd);
++	if (len > 0) {
++		write_all(STDERR_FILENO, errormsg, len);
++		exit(EXIT_FAILURE);
++	}
++	return true;
++}
++#else
+ static bool create_session(const char *name, char * const argv[]) {
+ 	/* this uses the well known double fork strategy as described in section 1.7 of
+ 	 *
+@@ -512,6 +595,7 @@ static bool create_session(const char *name, char * const argv[]) {
+ 	}
+ 	return true;
+ }
++#endif /* _WIN32 */
+ 
+ static bool attach_session(const char *name, const bool terminate) {
+ 	if (server.socket > 0)
+@@ -597,13 +681,30 @@ int main(int argc, char *argv[]) {
+ 	bool force = false;
+ 	char **cmd = NULL, action = '\0';
+ 
++#ifdef _WIN32
++	char *comspec = getenv("COMSPEC");
++	char *default_cmd[4] = { comspec ? comspec : "cmd.exe", "/c", getenv("ABDUCO_CMD"), NULL };
++	win32_argv = argv;
++#else
+ 	char *default_cmd[4] = { "/bin/sh", "-c", getenv("ABDUCO_CMD"), NULL };
++#endif
+ 	if (!default_cmd[2]) {
+ 		default_cmd[0] = ABDUCO_CMD;
+ 		default_cmd[1] = NULL;
+ 	}
+ 
+ 	server.name = basename(argv[0]);
++#ifdef _WIN32
++	{
++		/* "abduco.exe" -> "abduco": the name becomes the socket dir */
++		static char name[64];
++		snprintf(name, sizeof name, "%s", server.name);
++		char *dot = strrchr(name, '.');
++		if (dot && !_stricmp(dot, ".exe"))
++			*dot = '\0';
++		server.name = name;
++	}
++#endif
+ 	gethostname(server.host+1, sizeof(server.host) - 1);
+ 
+ 	while ((opt = getopt(argc, argv, "aAclne:fpqrv")) != -1) {
+@@ -681,6 +782,14 @@ int main(int argc, char *argv[]) {
+ 
+ 	server.read_pty = (action == 'n');
+ 
++#ifdef _WIN32
++	if (compat_daemon_role()) {
++		/* we are the server create_session() re-executed */
++		win32_server_main(server.session_name, cmd);
++		return EXIT_FAILURE;
++	}
++#endif
++
+ 	redo:
+ 	switch (action) {
+ 	case 'n':
+diff --git a/ports/abduco/config.h b/ports/abduco/config.h
+new file mode 100644
+index 0000000..c937b60
+--- /dev/null
++++ b/ports/abduco/config.h
+@@ -0,0 +1,24 @@
++/* default command to execute if non is given and $ABDUCO_CMD is unset */
++#define ABDUCO_CMD "dvtm"
++/* default detach key, can be overriden at run time using -e option */
++static char KEY_DETACH = CTRL('\\');
++/* redraw key to send a SIGWINCH signal to underlying process
++ * (set to 0 to disable the redraw key) */
++static char KEY_REDRAW = 0;
++/* Where to place the "abduco" directory storing all session socket files.
++ * The first directory to succeed is used. */
++static struct Dir {
++	char *path;    /* fixed (absolute) path to a directory */
++	char *env;     /* environment variable to use if (set) */
++	bool personal; /* if false a user owned sub directory will be created */
++} socket_dirs[] = {
++	{ .env  = "ABDUCO_SOCKET_DIR", false },
++	{ .env  = "HOME",              true  },
++#ifdef _WIN32
++	/* WIN32: HOME is usually unset outside Git Bash/MSYS */
++	{ .env  = "USERPROFILE",       true  },
++	{ .env  = "LOCALAPPDATA",      true  },
++#endif
++	{ .env  = "TMPDIR",            false },
++	{ .path = "/tmp",              false },
++};

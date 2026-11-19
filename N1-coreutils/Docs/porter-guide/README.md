@@ -23,6 +23,12 @@ Esta guía está estructurada en módulos secuenciales y temáticos:
 | **11** | [Procesos, IPC y Transporte](11-procesos-ipc-y-transporte.md) | `fork`/`exec` vs `CreateProcess`, pipes y handles heredados, `socketpair` sobre loopback, pump threads, `WSAPoll`, `waitpid`, transporte SSH. |
 | **12** | [Paths, `argv` y Unicode](12-paths-argv-y-unicode.md) | Namespace `/c/...` y `/unc/...`, normalización antes de `host:path`, quoting de `CreateProcess`, `CP_ACP` vs `CP_UTF8`, long paths. |
 | **13** | [Matriz de Porteo, Seguridad y Build](13-matriz-de-porteo-seguridad-y-build.md) | Checklist, pruebas de >2 GB/Unicode/UNC/pipes, symlinks y TOCTOU, ACLs, CMake reusable y `vswhere`. |
+| **18** | [Pseudoterminales: `forkpty` vs ConPTY](18-pseudoterminales-forkpty-vs-conpty.md) | ConPTY, pump threads, la rama hijo traducida a `CreateProcess`, EOF y `ClosePseudoConsole`, `SIGWINCH` como repintado, `TERM`. |
+| **19** | [`select()`, Señales y Bucle de Eventos](19-select-senales-y-bucle-de-eventos.md) | fds virtuales, cortafuegos de `windows.h`, `WaitForMultipleObjects`, cola de consola, termios↔modos de consola, señales emuladas, `pselect`, `waitpid`. |
+| **20** | [Demonios, AF_UNIX y Sesiones](20-demonios-sockets-af-unix-y-sesiones.md) | Re-ejecución en vez de doble `fork`, pipe de estado, Jobs, sockets AF_UNIX como reparse points, RST al cerrar, bits del socket en atributos, propiedad por SID. |
+| **21** | [Estudio de Caso: dtach, abduco y dvtm](21-estudio-de-caso-multiplexores.md) | Orden de ataque, extensiones GNU vs MSVC, `ptyrun` (terminal guionada), bitácora de bugs, PDCurses, `cdb` y `COMPAT_TRACE`. |
+
+> Los módulos 18–21 salen de la kata [`N5-multiplexers`](../../../N5-multiplexers/README.md): dtach, abduco y dvtm. (14–17 quedan para la kata N4-notifications.)
 
 ---
 
