@@ -10,6 +10,11 @@ Winsock y la consola de Windows.
 | `abduco` | sesiones con nombre, listado, códigos de salida | completo, 10 pruebas (`-r`/`-l`/`-p` compilan, sin prueba) |
 | `dvtm` | gestor de ventanas en mosaico dentro de la terminal (dwm para la consola) | núcleo completo, 9 pruebas (incluye abduco+dvtm) |
 
+Cada programa también está publicado como fork autocontenido (rama `port/windows`):
+[5hif7y/dtach](https://github.com/5hif7y/dtach/tree/port/windows),
+[5hif7y/abduco](https://github.com/5hif7y/abduco/tree/port/windows),
+[5hif7y/dvtm](https://github.com/5hif7y/dvtm/tree/port/windows). Ver `UPSTREAM.md`.
+
 ## Compilar y probar
 
 ```bat

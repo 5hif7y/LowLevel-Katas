@@ -33,7 +33,7 @@ $abduco = Join-Path $B "abduco.exe"
 $dvtm   = Join-Path $B "dvtm.exe"
 $err    = Join-Path $tmp "e.txt"
 
-if (-not $Only -or $Only -eq "dtach") {
+if ((-not $Only -or $Only -eq "dtach") -and (Test-Path $dtach)) {
     Write-Host "dtach"
     $s = "tests/tmp/d1"
     & $dtach -n $s cmd.exe
@@ -57,7 +57,7 @@ if (-not $Only -or $Only -eq "dtach") {
     Check "terminal resize reaches the program" ($t -match 'Columns:\s+100')
 }
 
-if (-not $Only -or $Only -eq "abduco") {
+if ((-not $Only -or $Only -eq "abduco") -and (Test-Path $abduco)) {
     Write-Host "abduco"
     $env:ABDUCO_SOCKET_DIR = $tmp
     & $abduco -n a1 cmd.exe
@@ -96,15 +96,17 @@ if ((-not $Only -or $Only -eq "dvtm") -and (Test-Path $dvtm)) {
     $t = Term @('2500:RESIZE 140x40', '1500:mode con\r', '1500:\x07qq') 9000 @($dvtm, "cmd.exe") 100 30
     Check "resize reaches the window's program" ($t -match 'Columns:\s+1[34]\d')
 
-    Write-Host "abduco + dvtm"
-    $env:ABDUCO_SOCKET_DIR = $tmp
-    $t = Term @('3000:echo inside-dvtm\r', '1500:\x1c') 8000 @($abduco, "-c", "ad", $dvtm, "cmd.exe") 100 30
-    Check "dvtm runs under abduco" ($t -match 'inside-dvtm')
-    Check "detach leaves dvtm running" ((Sessions) -match '\sad(\n|$)')
-    $t = Term @('2500:\x07qq') 8000 @($abduco, "-a", "ad") 100 30
-    Check "reattach shows dvtm screen" ($t -match 'inside-dvtm')
-    Check "quitting dvtm ends the session" ($t -match 'exit status 0')
-    Remove-Item env:ABDUCO_SOCKET_DIR
+    if (Test-Path $abduco) {
+        Write-Host "abduco + dvtm"
+        $env:ABDUCO_SOCKET_DIR = $tmp
+        $t = Term @('3000:echo inside-dvtm\r', '1500:\x1c') 8000 @($abduco, "-c", "ad", $dvtm, "cmd.exe") 100 30
+        Check "dvtm runs under abduco" ($t -match 'inside-dvtm')
+        Check "detach leaves dvtm running" ((Sessions) -match '\sad(\n|$)')
+        $t = Term @('2500:\x07qq') 8000 @($abduco, "-a", "ad") 100 30
+        Check "reattach shows dvtm screen" ($t -match 'inside-dvtm')
+        Check "quitting dvtm ends the session" ($t -match 'exit status 0')
+        Remove-Item env:ABDUCO_SOCKET_DIR
+    }
 }
 
 Pop-Location

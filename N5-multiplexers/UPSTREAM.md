@@ -19,6 +19,23 @@ reescribir. Los cambios quedan acotados con `#ifdef _WIN32` y comentados con
 
 Las licencias originales se conservan en `ports/*/COPYING|LICENSE`.
 
+## Forks publicados
+
+Cada port vive también como fork autocontenido, en la rama `port/windows`
+(creada desde el commit pinneado de arriba). Los fuentes parcheados están en la
+raíz, como en upstream, y todo lo de Windows en `win32/`: la capa `compat`, el
+CMake, `build.bat`, `tests/` y un README. Así se compila sin esta kata.
+
+| Fork | Rama | Commit | Pruebas propias |
+| :--- | :--- | :--- | :--- |
+| <https://github.com/5hif7y/dtach> | `port/windows` | `96c846d` | 11/11 |
+| <https://github.com/5hif7y/abduco> | `port/windows` | `1e5ee8b` | 10/10 |
+| <https://github.com/5hif7y/dvtm> | `port/windows` | `f186d55` | 5/5 (PDCursesMod vía `FetchContent`, pinneado) |
+
+Clones locales: `DEV/gitclones/<programa>`, con remotos `origin` = upstream y
+`fork` = el fork. **`ports/` de esta kata es la fuente:** si cambia un parche o
+la capa `compat/`, hay que regenerar el `win32/` del fork correspondiente.
+
 ## Qué se tocó en cada programa
 
 **dtach** (`ports/dtach`)
