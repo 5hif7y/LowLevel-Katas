@@ -1,0 +1,10 @@
+# service/profile + profile/endpoints — informe (~7.900 líneas; 6 + 7 tests x3)
+
+- endpoints: todos los tipos (any, asn, continent, country, ip, iprange, lists, domain, scopes), protocolo/puerto, Reason (union Rule_Reason | intel.List_Block_Reason, JSON de contexto compatible), match_endpoints/match_multi. Tests de Go portados verbatim; ASN/país contra un MMDB que arma el test (Go los salta en CI).
+- profile: record con el JSON y orden de campos de Go; LayeredProfile con contador de revisión y provider runtime `runtime:layeredProfile/...`; getters en capas Layered_Option($T); las 26 opciones con claves/defaults/textos de Go; fingerprints con puntaje; derive_profile_id byte-exacto; especiales, activos y su cleaner, hook PrePut, migraciones, API. Llena pm_sync.deps (sync ya tiene perfiles).
+PORT-TODO: anotación EndpointListVerdictNames (map[string]string, config.Annotation_Value no tiene esa variante); iterador de core:text/regex se detiene en el primer match vacío (≠ FindAllString con `x*`); layered profiles inmortales (Go: GC); WarningLastUpdated/MetaState.At como texto RFC 3339.
+
+Bugs de Go corregidos: parseEndpoint corta el comentario antes de recontar campos ("+ #x" → panic de índice); addActiveProfile marcaba outdated al mismo perfil que se re-agregaba (cada proceso nuevo forzaba recarga desde la DB + aumento de revisión); addEndpointEntry sobre Config nil (`"Config":null`) → panic; GetLocalProfile con ID especial y md nil.
+Conservados: XOR de scopes ("LAN,LAN" se anula); fallback false de blockInbound pese a default true; parseConfig corta sin reglas ante un valor inválido; DeriveProfileID ordena su argumento in place y hashea sin compactar (IDs compatibles); makeReason maneja un solo par; mensaje de handleMergeProfiles nombra a request.To.
+
+Trampas: campos `config`/`endpoints` = nombres de paquete → alias de import; fmt.tprintf interpreta `{` → helper fill; `[]string{}` es nil → JSON null → centinela; map vacío → null → cap 1; writer mmdb guarda referencias a arrays del stack; destruir el iterator antes de que el productor cierre done; registry de runtime libera con su propio allocator.

@@ -1,0 +1,12 @@
+# service/process + process/tags — informe (16 + 9 tests x3)
+
+- Process = record con refcount; la caché (clave "pid-createdAtMs", inmune a reuso de PID) tiene una referencia; todo proc que devuelve ^Process entrega una nueva (`release`). singleflight por clave, cada esperador recibe su referencia.
+- Win32 sin admin: OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION); path QueryFullProcessImageNameW; cmdline NtQueryInformationProcess(ProcessCommandLineInformation=60) (gopsutil lee el PEB); creación GetProcessTimes con fallback a NtQuerySystemInformation(SystemProcessInformation); parent del mismo snapshot; usuario token + LookupAccountSidW; env y cwd del PEB (PROCESS_VM_READ). Cwd ahora se llena en Windows (Go: "not yet implemented").
+- tags: 7 handlers; `_unix.go` NO es build constraint en Go, así que AppImage/Flatpak/Snap/Interpreter se registran también en Windows (se conserva). svchost por enumeración SCM read-only.
+- Conexión con profile directa (profile_glue.odin). Hooks etapa 6: Instance.binary_updates; network debe llamar process.set_db_controller; core.deps.get_process_by_request_origin → process.request_origin_info.
+PORT-TODO: lib/http no expone la dirección local del lado servidor de una request (Go: http.LocalAddrContextKey).
+
+Bugs de Go corregidos: **GetProcessByRequestOrigin nunca encuentra el proceso** (arma el paquete sólo con Src/SrcPort y la búsqueda TCP compara también el extremo remoto → `core/my-profile` y la autorización de apps fallan siempre en Go); GetExecHash escribe en un map nil (panic), algoritmo desconocido → hasher nil, map sin lock; winstore: os.ExpandEnv no expande `%VAR%` → ruta literal que nunca matchea; interpreter: cmdline vacía → panic en args[0]; enableProcessDetection func nil antes de prep; IsPortmasterUi deref de module nil.
+Conservados: request origin IPv4 fijo; error de creación del parent aborta la carga; $SNAP vacío prefija todo; el último match del interpreter gana; entradas `=C:` del entorno quedan bajo clave ""; shlex trata los `\` de rutas Windows como escapes (igual que Go).
+
+Trampas: buffers del temp allocator a NtQuerySystemInformation → STATUS_DATATYPE_MISALIGNMENT (0x80000002): el arena devuelve memoria alineada a byte → mem.make_aligned(..., 16); python open() en Windows usa cp1252 → truncó un archivo al fallar al escribir "→" (usar encoding='utf-8'); `odin test` compila también los tests de paquetes importados (un profile_test a medio escribir rompe el build); [dynamic] con cap 0 serializa null (Go []); campo llamado como un paquete → ciclo de declaración.
