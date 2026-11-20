@@ -1,0 +1,11 @@
+# Pre-etapa 4, frente A — formatos de datos
+
+- `lib/deflate` (pm_deflate): encoder propio LZ77 (ventana 32 KiB, hash chains, tabla de niveles de zlib: greedy 1–3, lazy 4–9) + Huffman dinámico/fijo/stored (el más chico por bloque), longitudes limitadas; zlib y gzip con los headers de Go. 1 MB repetitivo < 1 % en niveles 1/6/9. Lo usan dsd (gzip BEST_COMPRESSION), lib/zip (deflate por defecto como Go `Create`; header local con tamaños en vez de data descriptor: zip válido, bytes distintos) y binmeta (PNG).
+- `lib/yamlemit`: el emisor de sync movido a paquete, perfiles V3 (yaml.v3) y V2 (yaml.v2 2.4.0, plegado libyaml > col 80).
+- dsd: time.Time (JSON RFC3339Nano UTC, cero = `0001-01-01T00:00:00Z`; **CBOR = segundos Unix enteros sin tag**, verificado en fxamacker v2.7.0 `encodeTime` (default TimeUnix), cero → null; MsgPack ext -1); decodificación a `any` (map[string]any, []any, f64 JSON / u64-i64 CBOR-MsgPack; destroy_value libera todo `any` alcanzado) y a uniones multi-variante (puntaje por tipo de nodo, empate → orden de declaración, fallback a la siguiente); MsgPack (vmihailenco v5) y YAML (ghodss: json → yaml.v2 con claves ordenadas). `json_to_format` mantiene el orden del documento (re-codificar vía map[string]any ordenaba claves de structs Go).
+- Usos: notifications (put desde la UI conserva EventData y Action.Payload), broadcasts (EventData y payloads de webhook anidados; matching-data en msgpack/cbor/yaml), metrics Start y profile Meta_State.at como time.Time reales (bytes idénticos). warning_last_updated sigue string (lo usa compat).
+- accessor.Value: variantes Null, []Value, Object; insert de la API acepta objetos/null/arrays mixtos.
+- iterator.Error: variante Error_Msg con buffer inline de 240 B (sin alocar, corta en borde UTF-8); ya no puede ser #shared_nil → finish normaliza.
+Bugs del port corregidos: destroy_action llamaba destroy_value con un `any` no-puntero → no hacía nada y filtraba strings del payload; map/slice dinámico vacío salía null.
+Trampas: agregar un Node_Kind rompe switches exhaustivos de otros paquetes; `make(map, 0)` y `[]T{}` son nil → null; yaml.v2 resuelve `Yes`/`y` como booleanos; tipo con el mismo nombre que un campo = ciclo ilegal; no se puede asignar `m[k].f`.
+Abierto: mgr.State.data toma event_data sin ser dueño (puede colgar si el estado sobrevive a la notificación) — preexistente.
