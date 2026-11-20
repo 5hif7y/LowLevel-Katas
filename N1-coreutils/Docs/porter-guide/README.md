@@ -32,8 +32,9 @@ Esta guía está estructurada en módulos secuenciales y temáticos:
 | **24** | [Compatibilidad binaria con Go](24-compatibilidad-binaria-con-go.md) | dsd, JSON/CBOR con reglas de Go, meta gencode de 34 bytes, mismo `db.sqlite`, `config.json` byte a byte. |
 | **25** | [Notificaciones que no se olvidan](25-notificaciones-persistentes-portmaster-notifyd.md) | Portmaster → notifyd: mapeo, `replace` por cambio de estado, pipe síncrono que bloquea escrituras, carreras del puente, reconexión. |
 | **26** | [Etapa 2: HTTP, TLS y firmas sin stdlib](26-etapa-2-http-tls-y-firmas-sin-stdlib.md) | Qué se escribe, qué se delega al SO (WinHTTP) y qué queda afuera; sockets en Windows, jess vs core:crypto, hooks `deps.odin`, bugs de Go. |
+| **27** | [Etapa 3: un firewall de Windows probado sin cargar el driver](27-etapa-3-firewall-sin-driver.md) | Protocolo del kext contra archivos Rust/Go, kext falso por named pipe, datos del sistema sin admin, bugs de Go que cambian veredictos, gate local de History/Bandwidth. |
 
-> Los módulos 22–26 salen de la kata [`N6-portmaster`](../../../N6-portmaster/README.md): port de Portmaster de Go a Odin.
+> Los módulos 22–27 salen de la kata [`N6-portmaster`](../../../N6-portmaster/README.md): port de Portmaster de Go a Odin.
 
 > Los módulos 14–17 salen de la kata [`N4-notifications`](../../../N4-notifications/README.md): ports de dunst, herbe y tiramisu, y un daemon con historial SQLite.
 

@@ -171,4 +171,4 @@ Estado al cerrar la etapa: 61 paquetes con tests, todos verdes (fork `33117723`)
 
 ---
 
-Anterior: [25](25-notificaciones-persistentes-portmaster-notifyd.md).
+Anterior: [25](25-notificaciones-persistentes-portmaster-notifyd.md) · Siguiente: [27](27-etapa-3-firewall-sin-driver.md).
