@@ -42,7 +42,8 @@ Kata en tres partes:
 | 1 | `base/` (log, utils, rng, info, database completo, config, runtime, notifications), `safing/structures`, `service/mgr` | ✔ (fork `cca812e4`, `f9c61ee7`, `ef10cbcc`) — ~180 tests |
 | 2 | base/api (+ HTTP/websocket propios), metrics, template, apprise, safing/jess, service/core, ui, status, control, broadcasts, updates, configure, sync | ✔ (fork `f057d0f7`, `8e94e41f`, `c29a1894`, `ec014989`) — dependencias de etapas 3–6 como hooks en `deps.odin` |
 | 3 | firewall en Windows: kext (protocolo), network, process, netenv, profile (+endpoints), intel (adelantado), compat, ivpn, firewall | ✔ (fork `4fb754e4` … `9f2a2380`) — probado contra un kext falso por named pipe, sin cargar el driver |
-| 4 | resolver, nameserver, **netquery** (History + Bandwidth), splittun (intel ya está) | ☐ |
+| 4 | lib/tls (SChannel), resolver, nameserver, **netquery** (History + Bandwidth), splittun | ✔ (fork `7c66afff`, `5b2e0374`, `90421c45`, `ef48c9e5`) — DNS probado en loopback, sin tocar el del sistema |
+| — | bases unix-like: todo paquete pasa `odin check` para linux/darwin (`odin/tests/crosscheck.sh`) | ✔ — se corre sólo en Windows |
 | 5 | SPN (`safing/jess` + `spn/*` + `cmds/hub`) — prueba con red propia en VPS | ☐ |
 | 6 | binarios `cmds/*` | ☐ |
 
@@ -70,3 +71,4 @@ odin test odin/base/notifications -collection:pm=odin -define:PM_NOTIFYD=<LowLev
 | [25](../N1-coreutils/Docs/porter-guide/25-notificaciones-persistentes-portmaster-notifyd.md) | Notificaciones: historial completo local + las importantes en notifyd |
 | [26](../N1-coreutils/Docs/porter-guide/26-etapa-2-http-tls-y-firmas-sin-stdlib.md) | Etapa 2: HTTP/websocket propios, TLS por WinHTTP, jess, hooks hacia etapas futuras |
 | [27](../N1-coreutils/Docs/porter-guide/27-etapa-3-firewall-sin-driver.md) | Etapa 3: firewall probado sin cargar el driver |
+| [28](../N1-coreutils/Docs/porter-guide/28-etapa-4-dns-tls-propio-e-historial.md) | Etapa 4: DNS, TLS sobre SChannel, netquery, bases unix-like |
