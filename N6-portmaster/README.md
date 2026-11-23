@@ -34,6 +34,7 @@ Kata en tres partes:
 | Cliente wnotify en Odin puro | `odin/base/notifications/wnotify/` |
 | Display falso para tests | `odin/tests/fakedisplay/` |
 | Informes de cada tanda de porteo | [notas-agentes/](notas-agentes/) |
+| Bugs encontrados (Odin, Portmaster Go, el port) — local, sin reportar | [BUGS.md](BUGS.md) |
 
 ## Etapas
 
