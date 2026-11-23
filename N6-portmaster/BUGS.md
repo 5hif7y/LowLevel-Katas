@@ -95,6 +95,10 @@ con el Portmaster de Go o con la red SPN).
 | intel | la interfaz cachea 256 records y los batch writes la saltean | sigue sirviendo entradas **borradas / whitelisteadas / purgadas** tras un update de filter lists | `intel.md` |
 | base/rng | el disparador de reseed de 1 MB nunca dispara (contador sin incrementar); `SupplyEntropyIfNeeded` invertido; sesgo de módulo; división por cero en `number(0)` | el RNG no se re-siembra como dice | `log-utils-rng-info.md` |
 | network | el gauge `network/connections/active/total` cuenta las conexiones **terminadas** | métrica al revés | `network-nsutil.md` |
+| cmds/observation-hub | `NewApprise` devuelve el módulo observer: main agrega el observer **dos veces** y apprise nunca | **el observation-hub de Go nunca manda una notificación** (dos observers corriendo) | `etapa6-c1-observation-hub.md` |
+| service (instance) | `GetStates` / `AddStatesCallback` no bajan al grupo de interception | los estados del self-check de compat y de interception **nunca llegan** a `runtime:system/status` | `etapa6-a-instance-core.md` |
+| service (Windows) | si `Start` falla, `RunService` espera un shutdown que nunca llega | el servicio **queda colgado** en vez de salir con error | `etapa6-a-instance-core.md` |
+| cmds/updatemgr | `mirror` compara el archivo empaquetado contra el SHA-256 del contenido desempaquetado | nunca reconoce un `.gz`/`.zip` ya bajado; `--check` siempre falla para ellos | `etapa6-b-cmds-sueltos.md` |
 
 ### 2.2 El resto, por área (corregidos en el port)
 
@@ -187,6 +191,22 @@ con el Portmaster de Go o con la red SPN).
   * panics por nil: varios en hub, tokens, access (`user.Device`), docks,
     navigator, crew.
 
+* **etapa 6 — binarios** (`etapa6-a-instance-core.md`, `etapa6-b-cmds-sueltos.md`,
+  `etapa6-c1-observation-hub.md`, `etapa6-c2-hub-quicksettings.md`):
+  `shutdown` chequea `ctx.Err()` y después cancela (dos shutdowns
+  concurrentes paran los módulos dos veces); `MakeUpdateConfigs` en otros OS
+  devuelve configs nil que `New` desreferencia; mensajes copy-paste
+  (notifications "create runtime module", geoip "create customlist
+  module"); observation-hub: el error de `service.New` se pisa (una cmdline
+  op nunca corre, un error real deja la instancia nil), `makeHubName` con IDs
+  de < 8 bytes, status viejo tras conectar; updatemgr: la conversión v1/v2
+  usa un scan config sin inicializar (nunca ignora ni desempaqueta);
+  integrationtest imprime los binds UDP4 como IPv6; winkext-test imprime el
+  payload sin cargarlo (siempre vacío); `base/rng/test` (la herramienta para
+  `dieharder`) no puede funcionar tal como está: `main` vuelve apenas arranca
+  los workers (sale sin escribir nada) y nunca arranca el módulo rng
+  (`rng.Bytes` fallaría con "RNG is not ready yet") (`rng-test-tool.md`).
+
 ### 2.3 Conservados a propósito
 
 Cambiarlos rompe compatibilidad (bytes en disco o en la red) o la
@@ -227,6 +247,10 @@ cerrar cada etapa). Todos tienen test de regresión.
 | 5 | **iterador de la base de datos liberado por el consumidor mientras el hilo de la query de sqlite seguía en `finish`** (en Go lo sostiene el GC) | el hub SPN moría ~1 de cada 40 arranques con `0xC0000005`, sin log, y nunca bajo un debugger; se encontró con minidumps escritos por el propio proceso (`lib/crashdump`). Ahora refcount consumidor + storage |
 | 5 | navigator: un test esperaba `.No_Location`, que sólo ocurre si otro test ya cargó geoip | fallaba ~2 de cada 10 corridas |
 | 5 | `base/utils`: el test del limiter afirmaba algo que Go no afirma (tamaño del lote) | dependía de la velocidad de arranque de 100 hilos del SO |
+| 6 | `rng.stop` y el stop del firewall esperaban a su propio worker de stop (el grupo corre `stop` como worker del manager) | rng fallaba al minuto ("Not_Ready", grupo Invalid) y el firewall perdía 5 s al apagar; nuevo `mgr.wait_for_other_workers` |
+| 6 | `make_update_configs`: la lista `ignore` era un slice en la pila | basura en el updater |
+| 6 | el servidor TLS de test deja su clave CNG persistida si el proceso muere antes de limpiar | claves `pm-tls-test-*` acumuladas en el almacén de claves del usuario; ahora cada corrida barre las de procesos muertos |
+| 6 | tests de `base/api` y `netquery` sin limpieza de temporales | ~175 directorios en `%TEMP%`; ahora barren los de corridas anteriores |
 
 ---
 

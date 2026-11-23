@@ -46,7 +46,7 @@ Kata en tres partes:
 | 4 | lib/tls (SChannel), resolver, nameserver, **netquery** (History + Bandwidth), splittun | ✔ (fork `7c66afff`, `5b2e0374`, `90421c45`, `ef48c9e5`) — DNS probado en loopback, sin tocar el del sistema |
 | — | bases unix-like: todo paquete pasa `odin check` para linux/darwin (`odin/tests/crosscheck.sh`) | ✔ — se corre sólo en Windows |
 | 5 | SPN (`spn/*`, `cmds/hub`, `cmds/spnclient`, hooks servicio↔SPN) + deudas de etapas anteriores | ✔ (fork `9e7028b4` … `e38559f6`, cierre `a56cdaa0`) — red self-hosted en loopback y en un VPS Linux; dos bugs de Odin y un use-after-free del iterador encontrados |
-| 6 | binarios `cmds/*` | ☐ |
+| 6 | binarios: `portmaster-core` sobre la instancia completa, `cmdbase`, hub, observation-hub, updatemgr y herramientas | ✔ (fork `bf5268de`, `539c304c`, cierre `01ee4383`) — el binario real corre sin driver, sin admin y sin tocar el DNS del sistema; ECDSA para mTLS pendiente de decisión |
 
 ## Tests
 
@@ -74,3 +74,4 @@ odin test odin/base/notifications -collection:pm=odin -define:PM_NOTIFYD=<LowLev
 | [27](../N1-coreutils/Docs/porter-guide/27-etapa-3-firewall-sin-driver.md) | Etapa 3: firewall probado sin cargar el driver |
 | [28](../N1-coreutils/Docs/porter-guide/28-etapa-4-dns-tls-propio-e-historial.md) | Etapa 4: DNS, TLS sobre SChannel, netquery, bases unix-like |
 | [29](../N1-coreutils/Docs/porter-guide/29-etapa-5-spn-red-propia-y-bugs-del-compilador.md) | Etapa 5: SPN con red propia, hub en Linux, dos bugs del compilador |
+| [30](../N1-coreutils/Docs/porter-guide/30-etapa-6-el-programa-entero-sin-tocar-el-sistema.md) | Etapa 6: el programa entero (portmaster-core, hub, observation-hub, updatemgr) sin tocar el sistema |
