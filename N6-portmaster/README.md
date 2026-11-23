@@ -44,7 +44,7 @@ Kata en tres partes:
 | 3 | firewall en Windows: kext (protocolo), network, process, netenv, profile (+endpoints), intel (adelantado), compat, ivpn, firewall | ✔ (fork `4fb754e4` … `9f2a2380`) — probado contra un kext falso por named pipe, sin cargar el driver |
 | 4 | lib/tls (SChannel), resolver, nameserver, **netquery** (History + Bandwidth), splittun | ✔ (fork `7c66afff`, `5b2e0374`, `90421c45`, `ef48c9e5`) — DNS probado en loopback, sin tocar el del sistema |
 | — | bases unix-like: todo paquete pasa `odin check` para linux/darwin (`odin/tests/crosscheck.sh`) | ✔ — se corre sólo en Windows |
-| 5 | SPN (`safing/jess` + `spn/*` + `cmds/hub`) — prueba con red propia en VPS | ☐ |
+| 5 | SPN (`spn/*`, `cmds/hub`, `cmds/spnclient`, hooks servicio↔SPN) + deudas de etapas anteriores | ✔ (fork `9e7028b4` … `e38559f6`, cierre `a56cdaa0`) — red self-hosted en loopback y en un VPS Linux; dos bugs de Odin y un use-after-free del iterador encontrados |
 | 6 | binarios `cmds/*` | ☐ |
 
 ## Tests
@@ -72,3 +72,4 @@ odin test odin/base/notifications -collection:pm=odin -define:PM_NOTIFYD=<LowLev
 | [26](../N1-coreutils/Docs/porter-guide/26-etapa-2-http-tls-y-firmas-sin-stdlib.md) | Etapa 2: HTTP/websocket propios, TLS por WinHTTP, jess, hooks hacia etapas futuras |
 | [27](../N1-coreutils/Docs/porter-guide/27-etapa-3-firewall-sin-driver.md) | Etapa 3: firewall probado sin cargar el driver |
 | [28](../N1-coreutils/Docs/porter-guide/28-etapa-4-dns-tls-propio-e-historial.md) | Etapa 4: DNS, TLS sobre SChannel, netquery, bases unix-like |
+| [29](../N1-coreutils/Docs/porter-guide/29-etapa-5-spn-red-propia-y-bugs-del-compilador.md) | Etapa 5: SPN con red propia, hub en Linux, dos bugs del compilador |

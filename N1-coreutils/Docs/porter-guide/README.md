@@ -34,6 +34,7 @@ Esta guía está estructurada en módulos secuenciales y temáticos:
 | **26** | [Etapa 2: HTTP, TLS y firmas sin stdlib](26-etapa-2-http-tls-y-firmas-sin-stdlib.md) | Qué se escribe, qué se delega al SO (WinHTTP) y qué queda afuera; sockets en Windows, jess vs core:crypto, hooks `deps.odin`, bugs de Go. |
 | **27** | [Etapa 3: un firewall de Windows probado sin cargar el driver](27-etapa-3-firewall-sin-driver.md) | Protocolo del kext contra archivos Rust/Go, kext falso por named pipe, datos del sistema sin admin, bugs de Go que cambian veredictos, gate local de History/Bandwidth. |
 | **28** | [Etapa 4: DNS, TLS propio e historial](28-etapa-4-dns-tls-propio-e-historial.md) | DNS sin tocar el del sistema, TLS sobre SChannel, el hueco SNI/IP de DoH y los tests que deben fallar, nameserver TCP, inyecciones SQL de netquery, bases unix-like por cross-check. |
+| **29** | [Etapa 5: SPN, red propia y bugs del compilador](29-etapa-5-spn-red-propia-y-bugs-del-compilador.md) | Red SPN self-hosted (zona de tokens e intel propios), rondas por capas de dependencia, primer binario Linux (objeto cruzado + gcc) en un VPS, un test colgado 6 h que destapó un bug de ABI de Odin en ChaCha20 AVX2, un use-after-free que sólo aparece sin debugger (minidump propio), pblind reconstruido vs fiel, inventario de deudas al cerrar. |
 
 > Los módulos 22–27 salen de la kata [`N6-portmaster`](../../../N6-portmaster/README.md): port de Portmaster de Go a Odin.
 

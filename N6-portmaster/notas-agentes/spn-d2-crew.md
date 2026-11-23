@@ -1,0 +1,33 @@
+# Etapa 5 (SPN), ronda D2 — spn/crew — informe
+
+Sin commit. Escrito sólo en `odin/spn/crew` (`pm_spn_crew`) y `odin/spn/crew/hooks` (`pm_spn_crew_hooks`, nuevo). **Ningún arreglo fuera** (navigator no tocado).
+
+## Archivos
+- **crew**: module (módulo, cola de connect errors de 10 = chan con `select default`), metrics, policy, op_ping, op_connect (Connect_Op + Connect_Request + códec wire), connect (handle_sluice_request, Tunnel, connect_worker, establish, establish_route, expand, Tunnel_Context), sticky, deps (hooks del navigator), tunnel_conn (conn de datos), `udp_dial_windows` / `udp_dial_linux` (syscalls, sin libc) / `udp_dial_other` (stub). Tests: crew_test (TestMain → begin + helpers), op_ping_test, op_connect_test, connect_test.
+- **crew/hooks**: hooks (`firewall.deps.sluice_await_request` = `sluice.await_request(conn, crew.handle_sluice_request)`), navigator_glue (`crew.deps` desde `navigator.Main`) + hooks_test.
+
+## Portado vs PORT-TODO
+Todo `spn/crew` portado. **Wire = Go**: request `'C'`+CBOR `{d, ip (byte string de 4 ó 16), pr, p, po, qs}` omitempty (golden byte a byte), ping `{n}` / `{n, t}` (time = segundos Unix). Exit dial **portable**: TCP con `ships.conn_dial` (bind `conf.get_bind_addr`, 10 s, ctx del op), UDP con socket conectado propio (`_udp_dial` Win/Linux) leído/escrito por `ships.Conn` (poll 50 ms; en Linux poll(2)). Chequea linux_amd64 y darwin_arm64; no ejecutado en Linux.
+- Navigator: compiló al final de la ronda → **cableado** en `crew/hooks/navigator_glue.odin` (`install_hooks` llama `install_navigator_hooks`); crew no importa navigator (sólo deps), se testea con un navigator falso. Glue sólo compilado + test sin mapa (no hay e2e con un Map real).
+- PORT-TODO: `avoid_hub` queda nil en el glue (navigator `Hub_Options.hub_policies` es prestado: agregar la política "evitar hub" exige que Options sea dueño de la lista); udp_dial macOS/BSD; Info del hub/TunnelContext sin IPs en tests (los test hubs no anuncian IPs).
+- `allow_local_destinations` (sólo tests): el exit rechaza IPs no globales como Go; los tests usan destinos 127.0.0.1.
+
+## Hooks
+Nuevos: `crew.deps` (19 procs: get_home, find_routes, find_route_to_hub, push_pin_changes, retain/release_route, route_copy_up_to, route_path, route_cost, route_string, pin_hub, pin_is_failing, pin_mark_as_failing_for, pin_get/set_active_terminal, pin_supports_ip_version, pin_location, destination_matches, avoid_hub) → los llena `crew/hooks` (5) desde navigator. Llenado: `firewall.deps.sluice_await_request` (`crew/hooks.install_hooks`, lo llama la instancia, etapa 6). API para captain: `new_crew_module`, `enable_connecting(hub)`, `connect_errors_try_recv/recv`, `new_ping_op`/`ping_op_result`, `handle_sluice_request`.
+
+## Tests (`export PATH=…vcpkg…/bin`; `timeout 600 odin test odin/spn/crew[/hooks] -collection:pm=odin -vet -out:$TEMP/d2/…exe > log 2>&1`)
+- **crew 11/11 ×3 OK** (+3 extra OK, 7–10 s), **hooks 2/2 ×3 OK**, sin leaks; los e2e terminan con `docks.wait_for_cranes()` (cranes/terminales = 0), 0 connect ops activos, 0 túneles/rutas vivos. `VET=1 bash odin/tests/crosscheck.sh windows_amd64 linux_amd64 darwin_arm64 -- odin/spn/crew odin/spn/crew/hooks`: 6/6 ok. Todo loopback.
+- Go: TestPingOp (par de test terminals) y TestConnectOp (ver bugs) + propios: wire request/ping (goldens), deliver de ping (nonce distinto/corto → Integrity, basura → Malformed, ack remoto → Stopping); **e2e TCP sobre docks test hub** (cliente → home terminal autorizado → connect op → el hub disca un echo local): 5 ecos + 64 KiB ida y vuelta por los DFQ, tráfico contado exacto, cierre de la app termina el op; destino sin listener → `[ext] connection error`; exit policy bloquea por puerto y por dominio (sin conexión al destino, conn Failed `[ext] permission denied`); connecting deshabilitado; IP no global (o rate limited por sospecha de la sesión); ping por el home terminal; **e2e UDP** (10 datagramas); **handle_sluice_request con 2 hops** (navigator falso: cliente → A → expansión a B creada y autorizada por crew → exit B → echo), TunnelContext (exit node = B, JSON Go exacto), 2ª conexión **sticky** reusa la expansión activa sin buscar ruta, `stop_tunnel` cierra la app; "SPN not ready" y sluice cerrándose; sticky (claves `?>`+bytes, avoid, expiración, limpieza); JSON de TunnelContext con IPv4/IPv6. hooks: sin sluice → "offline"; glue sin mapa.
+
+## Bugs de Go
+Corregidos: auth "aborted" (`if tErr != nil { tErr = ErrUnknownError }` invertido: con nil envuelve nil y establishRoute devuelve sin error ni pin) → nil = Unknown; log de NewConnectOp fallido imprime el `err` nil en vez de tErr; GetInfo() de hub sin info en checkExitPolicy (nil deref) → denegado; conn de la app nunca cerrada si establish/NewConnectOp fallan (Go la deja al GC) → se cierra; expansiones creadas que no llegan a activarse quedan abiertas → abandonadas; `started` del op en el exit nunca se setea (histograma de duración desde el año 1) → al conectar.
+Conservados: TestConnectOp de Go no puede funcionar (TestTerminal no es SessionTerminal → "no session available"; el test portado lo verifica); entrada sticky vencida se sigue usando hasta el limpiador (10 min); clave sticky sin perfil = `"?>"+string(net.IP)` (bytes crudos); FindRouteToHub OK pero vacío → "no routes" sin fallback; op detenido por setup antes de `SetActiveOp` queda en el mapa hasta el abandono; errores locales del cliente → Stopping al exit.
+
+## Trampas
+1. La conexión incompleta vive en el store de network (`store_add`): su TunnelContext (y el túnel) sólo se liberan al sacarla (`delete_connection`) → en tests `drop_conn_info`; ciclo conexión → contexto → túnel → conexión roto soltando `tunnel.conn_info` al destruir el op (el worker tiene su propia ref).
+2. recv bloqueante no despierta con shutdown() en Windows → el socket del `sluice.TCP_Conn` se maneja con un `ships.Conn` (no bloqueante) y `conn_set_abort(op.ctx)`; el sluice conn sigue siendo dueño del handle.
+3. `select { case doneWriting <- x }` (sólo cuando HandleStop espera) → flag `stop_waiting` + evento; el writer sale cuando su cola está vacía.
+4. `op_stopped` se marca antes de que HandleStop corra: el veredicto Failed llega después del EOF de la app → esperar el veredicto (flake 1/3 hasta arreglarlo).
+5. Sospecha de la sesión: 3 rechazos ×10 superan el mínimo 25 → el 4º caso da "rate limited" (correcto) → orden de casos.
+6. `fmt.tprintf` con `{` (JSON esperado) → concatenate; `string([]u8{…})` literal no compila; `#partial switch` sobre `distinct u8` no vale.
+7. `odin check` compila los tests de los paquetes importados: los tests a medio escribir de navigator rompían el check de crew/hooks a ratos (reintentar).
