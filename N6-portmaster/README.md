@@ -35,6 +35,7 @@ Kata en tres partes:
 | Display falso para tests | `odin/tests/fakedisplay/` |
 | Informes de cada tanda de porteo | [notas-agentes/](notas-agentes/) |
 | Bugs encontrados (Odin, Portmaster Go, el port) — local, sin reportar | [BUGS.md](BUGS.md) |
+| Features de Portmaster: portado o no, y lo que se hizo distinto | [FEATURES.md](FEATURES.md) |
 
 ## Etapas
 
