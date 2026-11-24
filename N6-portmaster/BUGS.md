@@ -290,5 +290,8 @@ cerrar cada etapa). Todos tienen test de regresión.
 ## Pendiente de decisión (tuya)
 
 * Reportar a Safing las **dos inyecciones SQL** de netquery (y quizás
-  `VerifyToken`, los CNAME y la IPv6 del kext v1).
+  `VerifyToken`, los CNAME y la IPv6 del kext v1). Borrador listo y sin
+  enviar (2026-11-24), sólo local: `informes-locales/safing-netquery-sqli.md`
+  (en `.git/info/exclude`). Gravedad estimada baja: requiere estar
+  autenticado en la API y la conexión es de sólo lectura.
 * Reportar a Odin los dos bugs de la sección 1 (la repro mínima ya está).

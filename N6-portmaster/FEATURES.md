@@ -4,7 +4,7 @@ Estado del port de Portmaster (Go) a Odin al cierre de la ronda unix
 (2026-11-24; fork `port/odin` en `5hif7y/portmaster`, hasta `8e05db6f`).
 
 **"Portado"** = el código existe y sus tests corren. Lo que nunca se probó en
-vivo (driver real, servicios del escritorio Linux) se marca aparte.
+vivo (el driver real, el login con una cuenta de Safing) se marca aparte.
 
 Verificación del cierre:
 
@@ -14,6 +14,8 @@ Verificación del cierre:
 | Linux (WSL Arch), todos los paquetes con tests | 154/154 |
 | Linux, tests privilegiados de netfilter y eBPF en network namespaces | 6/6, sin reglas sobrantes; reglas del namespace principal sin cambios |
 | `odin check -vet` para windows_amd64, linux_amd64 y darwin_arm64 | 0 fallas |
+| En vivo en Linux (VPS Rocky 9, 2026-11-24, `odin/tests/linux_live/run_vps.sh`) | 26/26: NetworkManager, notificaciones, gnome-keyring y `portmaster-core` bajo systemd |
+| En vivo contra el servidor de cuentas real de Safing, sin cuenta | health check y login inválido → 401, como Go |
 
 ---
 
@@ -35,13 +37,13 @@ Verificación del cierre:
 | Tags de proceso (svchost, Windows Store, Flatpak, Snap, AppImage, intérpretes) | ✔ | |
 | Geoip (país y ASN) | ✔ | Lector MMDB propio |
 | Detección de DGA | ✔ | |
-| Estado online y portal cautivo (netenv) | ✔ | En Linux, NetworkManager por D-Bus **sin probar en vivo** (WSL no lo tiene; probado contra uno falso) |
+| Estado online y portal cautivo (netenv) | ✔ | En Linux, NetworkManager por D-Bus probado en vivo en el VPS (conectividad y DNS iguales a `nmcli`) |
 | SPN: cliente multi-hop y hub | ✔ | Probado en local y contra el VPS |
-| SPN: tokens, acceso y cuenta de Safing | ✔ en código | El cliente de cuentas se probó contra un servidor falso, nunca contra el de Safing |
+| SPN: tokens, acceso y cuenta de Safing | ✔ | Contra el servidor real de Safing sólo lo que no pide cuenta (health check, login inválido → 401). El login real, los tokens y el perfil, sólo contra un servidor falso |
 | Split tunneling | ✔ | |
 | Interop con IVPN (Windows y Linux) | ✔ | En Linux los comandos nft/ip sólo se verifican en tests, nunca se ejecutan |
 | Self-check de compatibilidad | ✔ | |
-| Notificaciones de escritorio y prompts | ✔ | Windows contra el notifyd real de N4; Linux contra un daemon falso (ningún dunst real) |
+| Notificaciones de escritorio y prompts | ✔ | Windows contra el notifyd real de N4. Linux contra un daemon real (xfce4-notifyd en el VPS: dunst no está en Rocky 9): app_icon, image-path, image-data y la señal de cierre |
 | Updates automáticos con índices firmados | ✔ | Índices compatibles byte a byte con los de Go |
 | API REST y websocket para la UI | ✔ | La UI del desktop no se portó (fuera de alcance) |
 | Config global y por app, exportar configuración | ✔ | |
@@ -49,8 +51,8 @@ Verificación del cierre:
 | Broadcasts de Safing | ✔ | |
 | Métricas y push de Prometheus | ✔ | |
 | Info de debug exportable | ✔ | Sin stacks de goroutines (ver §2) |
-| Keyring (Credential Manager; Secret Service en Linux) | ✔ | Linux sólo contra un Secret Service falso |
-| Modo servicio (SCM en Windows; señales en Linux) | ✔ | En Linux se probaron las señales con el binario real; systemd no se probó |
+| Keyring (Credential Manager; Secret Service en Linux) | ✔ | Linux contra gnome-keyring real en el VPS (set, get, reemplazo, delete, self-check del trust store) |
+| Modo servicio (SCM en Windows; señales en Linux) | ✔ | En Linux, `portmaster-core` real bajo systemd con el sandbox de la unit de Portmaster: arranque, reinicio por la API (exit 23), reinicio tras un crash, parada limpia. Sin intercepción, DNS en 15353, reglas del firewall del VPS sin cambios |
 | `recover-iptables` | ✔ | Probado en un namespace |
 | Herramientas: observation-hub, updatemgr, trafficgen, integrationtest, testsuite, rng/test | ✔ | |
 | winkext-test | Compilado, nunca ejecutado | Habla con el driver real |
