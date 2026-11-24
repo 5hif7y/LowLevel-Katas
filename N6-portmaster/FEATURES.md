@@ -76,7 +76,7 @@ Verificación del cierre:
 |---|---|---|
 | Base de datos | badger y bbolt | sqlite, más un importador de sólo lectura de bases bbolt de Go |
 | TLS | `crypto/tls` | SChannel en Windows, OpenSSL 3 en Linux |
-| Certificados de cliente (mTLS) | RSA, ECDSA, Ed25519 | Windows sólo RSA (ECDSA espera una decisión: necesita un contenedor de claves persistido); Linux los tres |
+| Certificados de cliente (mTLS) | RSA, ECDSA, Ed25519 | RSA y ECDSA en Windows y Linux; Ed25519 sólo en Linux. En Windows, ECDSA vive en un contenedor CNG con nombre único del almacén del usuario, que se borra al destruir el certificado (y se barre si el proceso muere): SChannel firma dentro de LSASS y no puede usar una clave efímera. Ed25519 no se puede en Windows: CNG rechaza la clave (`NTE_BAD_ALGID`, medido en Windows 10 22H2) |
 | Cliente HTTP | `net/http`, con h2 | WinHTTP en Windows, HTTP/1.1 propio en Linux. Sin HTTP/2, así que DoH usa HTTP/1.1 con keep-alive |
 | Nameserver | Sólo UDP | UDP y TCP |
 | Librerías de terceros | miekg/dns, gopacket, maxmind, cobra, text/template, gopsutil, godbus, go-keyring | Ports propios del subconjunto que Portmaster usa, más un cliente D-Bus y un netlink en Odin puro |
