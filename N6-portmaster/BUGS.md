@@ -50,6 +50,13 @@ se reproducen sin una línea de Portmaster.
 * **Probablemente general**: cualquier proc `#force_inline` con varios
   resultados SIMD de 256 bits; `_dq_round_simd128` (misma forma, 128 bits)
   se llama bien.
+* **Ya reportado (2026-11-24): no hace falta informe.** Es
+  [odin-lang/Odin#7780](https://github.com/odin-lang/Odin/issues/7780)
+  (abierto desde 2026-10-06, de otra persona, con un comentario que lo
+  reproduce en Windows). El commit `5588efc8d` (2026-10-13, posterior a
+  nuestro nightly `84bc3fc`) agrega `@enable_target_feature` a
+  `core:crypto/_chacha20`. Al actualizar Odin: correr el test de arriba y,
+  si pasa, sacar el workaround.
 
 ### 1.2 `fe_sqrt` de P-384 calcula otra potencia
 
@@ -70,6 +77,14 @@ se reproducen sin una línea de Portmaster.
 * **Workaround**: exponenciación propia en
   `odin/spn/access/token/pblind/hash.odin` (`field_sqrt`), sólo para P-384 y
   sólo sobre datos públicos.
+* **Causa exacta (2026-11-24)**: reproduciendo las 29 operaciones de la
+  cadena sobre los exponentes, da exactamente x^(p−3). El paso 395 ya
+  vale x^((p+1)/4 − 1): cambiar el `fe_pow2k(out1, out1, 2)` final por
+  `fe_mul(out1, &xx, out1)` lo arregla. Probado sobre una copia del paquete:
+  de los 153 residuos cuadráticos en 1..200 hoy acepta 1, y con el arreglo
+  los acepta todos, cada uno con su raíz correcta. El archivo es idéntico en
+  `master` (`090cb3f0b`) y no hay ningún issue ni PR al respecto. Borrador
+  del issue, sin enviar: `informes-locales/odin-p384-fe-sqrt.md`.
 
 ---
 
@@ -294,4 +309,10 @@ cerrar cada etapa). Todos tienen test de regresión.
   enviar (2026-11-24), sólo local: `informes-locales/safing-netquery-sqli.md`
   (en `.git/info/exclude`). Gravedad estimada baja: requiere estar
   autenticado en la API y la conexión es de sólo lectura.
-* Reportar a Odin los dos bugs de la sección 1 (la repro mínima ya está).
+* Reportar a Odin el bug 1.2 (P-384 `fe_sqrt`): borrador listo y sin
+  enviar, en `informes-locales/odin-p384-fe-sqrt.md`. El 1.1 ya estaba
+  reportado (#7780).
+* Los otros cuatro de Safing (CNAME en filter lists, `VerifyToken`, IPv6
+  del kext v1 y CNAME del dnsmonitor), verificados contra `development`:
+  borrador local en `informes-locales/safing-other-findings.md`, sin
+  enviar. Va junto con el de la inyección SQL.

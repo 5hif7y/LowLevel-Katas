@@ -55,7 +55,7 @@ Verificación del cierre:
 | Modo servicio (SCM en Windows; señales en Linux) | ✔ | En Linux, `portmaster-core` real bajo systemd con el sandbox de la unit de Portmaster: arranque, reinicio por la API (exit 23), reinicio tras un crash, parada limpia. Sin intercepción, DNS en 15353, reglas del firewall del VPS sin cambios |
 | `recover-iptables` | ✔ | Probado en un namespace |
 | Herramientas: observation-hub, updatemgr, trafficgen, integrationtest, testsuite, rng/test | ✔ | |
-| winkext-test | Compilado, nunca ejecutado | Habla con el driver real |
+| winkext-test | Compilado, nunca ejecutado | Habla con el driver real. El kit para probarlo, junto con la intercepción, en una VM Hyper-V está listo en `odin/tests/winvm` (falta espacio en C:/D: y la ISO) |
 | macOS | Sólo compila | 14 `PORT-TODO(darwin)`: procesos, intercepción, notificaciones, keyring y algo de netenv/metrics |
 | UI desktop (Angular + Tauri), driver WFP (Rust), scripts | No (fuera de alcance) | No son Go; el driver y los scripts se usan tal cual |
 
