@@ -47,6 +47,7 @@ Kata en tres partes:
 | — | bases unix-like: todo paquete pasa `odin check` para linux/darwin (`odin/tests/crosscheck.sh`) | ✔ — se corre sólo en Windows |
 | 5 | SPN (`spn/*`, `cmds/hub`, `cmds/spnclient`, hooks servicio↔SPN) + deudas de etapas anteriores | ✔ (fork `9e7028b4` … `e38559f6`, cierre `a56cdaa0`) — red self-hosted en loopback y en un VPS Linux; dos bugs de Odin y un use-after-free del iterador encontrados |
 | 6 | binarios: `portmaster-core` sobre la instancia completa, `cmdbase`, hub, observation-hub, updatemgr y herramientas | ✔ (fork `bf5268de`, `539c304c`, cierre `01ee4383`) — el binario real corre sin driver, sin admin y sin tocar el DNS del sistema; ECDSA para mTLS pendiente de decisión |
+| unix | Linux: TLS/HTTP con OpenSSL, /proc, netlink, D-Bus (NetworkManager, keyring, notificaciones), intercepción nfqueue/conntrack/iptables/eBPF, monitor de systemd-resolved | ✔ (fork `32c3f2b3` … `2e018968`) — sin `PORT-TODO(unix)`; macOS compila, con 14 `PORT-TODO(darwin)` |
 
 ## Tests
 
@@ -75,3 +76,4 @@ odin test odin/base/notifications -collection:pm=odin -define:PM_NOTIFYD=<LowLev
 | [28](../N1-coreutils/Docs/porter-guide/28-etapa-4-dns-tls-propio-e-historial.md) | Etapa 4: DNS, TLS sobre SChannel, netquery, bases unix-like |
 | [29](../N1-coreutils/Docs/porter-guide/29-etapa-5-spn-red-propia-y-bugs-del-compilador.md) | Etapa 5: SPN con red propia, hub en Linux, dos bugs del compilador |
 | [30](../N1-coreutils/Docs/porter-guide/30-etapa-6-el-programa-entero-sin-tocar-el-sistema.md) | Etapa 6: el programa entero (portmaster-core, hub, observation-hub, updatemgr) sin tocar el sistema |
+| [31](../N1-coreutils/Docs/porter-guide/31-ronda-unix-linux-desde-windows.md) | Ronda unix: todo lo de Linux portado y corrido en WSL; netfilter y eBPF como root sólo en network namespaces |

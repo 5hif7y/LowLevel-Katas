@@ -207,6 +207,27 @@ con el Portmaster de Go o con la red SPN).
   los workers (sale sin escribir nada) y nunca arranca el módulo rng
   (`rng.Bytes` fallaría con "RNG is not ready yet") (`rng-test-tool.md`).
 
+### 2.2.1 Ronda unix (Linux): corregidos en el port
+
+* **interception Linux** (`unix-interception.md`): `StartNfqueueInterception`
+  marca `isRunning` antes de activar y no lo resetea si falla (el siguiente
+  start dice "already running" sin nada corriendo); el monitor de
+  systemd-resolved guarda los CNAME con el nombre crudo y `AddCNAMEs` busca
+  con el FQDN (**nunca registra un CNAME**), toma como CNAME cualquier
+  respuesta con campo `name` (NS, PTR) y desreferencia nil si falta `rr`;
+  go-conntrack `Get` pide ACK y lee un solo datagrama (el ACK queda para la
+  request siguiente); `InitNFCT` dos veces pierde el handle viejo.
+* **netenv** (`unix-dbus-netenv.md`): la conexión D-Bus a NetworkManager
+  nunca se renueva (si el bus se reinicia, todas las consultas fallan hasta
+  reiniciar Portmaster); el warning de `ipv6_route` imprime otro campo.
+* **binmeta / network/proc** (`unix-process-state.md`): en Linux
+  `GetIconAndName` busca el ícono con la ruta completa (**nunca encuentra uno
+  para un proceso real**) y el mejor match por prefijo pierde el directorio;
+  UID e inodo de `/proc/net` parseados como int32 con signo (se pierden los
+  sockets con inodo ≥ 2^31).
+* **keyring** (go-keyring, `unix-keyring.md`): `handlePrompt` abandona ante
+  la primera señal que no es `Completed`.
+
 ### 2.3 Conservados a propósito
 
 Cambiarlos rompe compatibilidad (bytes en disco o en la red) o la
@@ -227,6 +248,12 @@ informe; los más llamativos:
   "≤10 %" como dice el comentario).
 * captain: el bootstrap file escribe IPv6 entre corchetes que
   `ParseBootstrapHub` no parsea.
+* eBPF `bandwidth.c` (objeto precompilado que el port carga tal cual): en
+  las sondas UDP IPv6 usa la dirección de origen como destino, así que esas
+  actualizaciones nunca coinciden con una conexión (arreglarlo exige
+  recompilar el objeto).
+* ivpn `hook_linux.go`: cuenta como default las rutas con gateway 0.0.0.0
+  (wg-quick) y falla si hay más de una.
 
 ---
 
@@ -251,6 +278,12 @@ cerrar cada etapa). Todos tienen test de regresión.
 | 6 | `make_update_configs`: la lista `ignore` era un slice en la pila | basura en el updater |
 | 6 | el servidor TLS de test deja su clave CNG persistida si el proceso muere antes de limpiar | claves `pm-tls-test-*` acumuladas en el almacén de claves del usuario; ahora cada corrida barre las de procesos muertos |
 | 6 | tests de `base/api` y `netquery` sin limpieza de temporales | ~175 directorios en `%TEMP%`; ahora barren los de corridas anteriores |
+| unix | `dial_tcp` cerraba con `defer` un resultado con nombre que `return {}, err` ya había puesto en 0 → todo dial fallido cerraba el **fd/handle 0** y perdía su socket | en Linux el fd 0 puede ser el listener de otro test: el resolver fallaba 1 de cada 11 corridas con ECONNREFUSED (15/40 bajo carga) |
+| unix | `tls.accept` cerraba el socket al fallar y sus tres llamadores también | doble close |
+| unix | un test de TLS leía el ALPN de un Conn ya destruido | use-after-free |
+| unix | `os.get_absolute_path` es `realpath(3)` en POSIX: falla si la ruta todavía no existe (Go `filepath.Abs` no toca el disco) | fstree, íconos de binmeta y el índice de updates fallaban en Linux; ahora `utils.abs_path` |
+| unix | el `.gitignore` raíz (de Go) excluye todo `vendor/` y `testdata/`, también los del port | un clon nuevo de `port/odin` no compilaba ni testeaba; ahora `odin/.gitignore` los re-incluye |
+| unix | el coordinador commiteó con `git add -A` mientras un agente editaba | el commit `79a21776` incluye la mitad del keyring unix: en ese commit `jess/truststores` no compila en unix (completado en `1cb7426d`) |
 
 ---
 
