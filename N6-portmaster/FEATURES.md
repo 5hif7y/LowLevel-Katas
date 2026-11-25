@@ -2,7 +2,7 @@
 
 Estado del port de Portmaster (Go) a Odin al cierre de la ronda unix
 (2026-11-24; fork `port/odin` en `5hif7y/portmaster`, hasta `8e05db6f`), más
-la UI nativa y su versión Linux/X11 (2026-11-25, hasta `26327cb7`). Lo que
+la UI nativa, su versión Linux/X11 y el barrido de Linux con dev-2026-11 (2026-11-25, hasta `e2e03c12`). Lo que
 falta está en [PENDIENTES.md](PENDIENTES.md).
 
 **"Portado"** = el código existe y sus tests corren. Lo que nunca se probó en
@@ -13,7 +13,7 @@ Verificación del cierre:
 | Dónde | Resultado |
 |---|---|
 | Windows, todos los paquetes con tests | 153/154 con Odin dev-2026-11 (2026-11-24; el restante, `lib/dbus/dbustest`, es sólo Linux) |
-| Linux (WSL Arch), todos los paquetes con tests | 154/154 con Odin dev-2026-10 (2026-11-24); no se volvió a correr con dev-2026-11 |
+| Linux (WSL Arch), todos los paquetes con tests | 155/155 con Odin dev-2026-11 (2026-11-25, `odin/tests/linux_cross_sweep.sh`: compilado en Windows, linkeado y corrido en WSL); `spn/crew` y `spn/patrol` fallan por tiempos con 3 paquetes en paralelo y pasan solos |
 | Linux, tests privilegiados de netfilter y eBPF en network namespaces | 6/6, sin reglas sobrantes; reglas del namespace principal sin cambios |
 | `odin check -vet` para windows_amd64, linux_amd64 y darwin_arm64 | 0 fallas |
 | En vivo en Linux (VPS Rocky 9, 2026-11-24, `odin/tests/linux_live/run_vps.sh`) | 26/26: NetworkManager, notificaciones, gnome-keyring y `portmaster-core` bajo systemd |

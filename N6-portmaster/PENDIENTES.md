@@ -46,16 +46,13 @@ anota la fecha y el commit.
   Quedaron detrás de `NATIVEGUI_X11_DIALOGS` (apagado: imprimen a stderr y
   devuelven "cancelado"). Hay que elegir: traer esas librerías (sofd es GPL)
   o escribir diálogos propios en C. La UI no los usa.
-- [ ] **Barrido de tests de Linux con dev-2026-11.** El WSL se liberó para el
-  trabajo de X11. El barrido completo (`odin/tests/wsl_test.sh`) no se volvió
-  a correr desde el cambio de compilador. El 2026-11-25 sí corrieron en WSL
-  `portmaster-core` y `portmaster-ui` compilados con dev-2026-11.
+- [ ] **Odin de WSL**: la distro tiene dev-2026-10 y el fork ya no compila con
+  él. Los tests de Linux corren con `odin/tests/linux_cross_sweep.sh`
+  (compilado en Windows). Para `wsl_test.sh` o un build nativo en Linux, hay
+  que actualizarlo (paquete o compilar dev-2026-11).
 
 ## UI y libnativegui
 
-- [ ] **Recompilar `pm-test\portmaster-ui.exe`**, que es la v1 (estaba
-  abierta). Cerrarla desde la bandeja y, en el fork:
-  `odin build odin/cmds/portmaster-ui -collection:pm=odin -out:C:\Users\Shifty\DEV\pm-test\portmaster-ui.exe`.
 - [ ] **Mapa del SPN con hubs reales**: sin probar en vivo. El core sólo acepta
   hubs con IP pública; habría que conectar el core de prueba al hub del VPS.
 - [ ] **Contorno de los continentes** en el mapa. No hay datos en el repo;
@@ -81,7 +78,10 @@ anota la fecha y el commit.
     "abandoned" después de q2);
   - netquery en Linux, "history must be enabled", ~1/12;
   - capacidad de docks bajo carga de CPU (18,5 % contra un piso de 20 %);
-  - service/mgr y core_e2e, por tiempos bajo carga (pasan solos).
+  - service/mgr y core_e2e, por tiempos bajo carga (pasan solos);
+  - spn/crew ("cranes/terminals were not freed") y spn/patrol
+    (`test_connectivity_check_task`) en Linux con 3 paquetes en paralelo;
+    solos pasan 3/3.
 - [ ] **`PermanentAcceptFinal`**: la entrada opcional en `Packet_VTable` que
   usaría `firewall.issue_verdict` quedó como propuesta.
 - [ ] **Credenciales de proxy en httpclient**
@@ -137,6 +137,16 @@ anota la fecha y el commit.
   son falsos positivos.
 
 ## Hecho en esta auditoría (2026-11-25)
+
+- **Barrido de Linux con dev-2026-11: 155/155** (fork `e2e03c12`,
+  `odin/tests/linux_cross_sweep.sh`). Encontró y se arregló:
+  - el ícono de las notificaciones apuntaba al árbol de fuentes (en un binario
+    instalado no había ícono);
+  - `lib/tls` en Linux devolvía EOF en vez de Closed después de `close()`;
+  - un test de `spn/access` con fecha fija que vencía hoy a las 13:00 UTC
+    (también fallaba en Windows).
+- `pm-test`: UI y core recompilados (la UI era la v1) y el ícono al lado del
+  exe; selftest contra un core de prueba sin fallas.
 
 - libnativegui: se sacó "Co-Authored-By" de los 6 commits de la branch
   (force-push). La regla quedó en memoria.
