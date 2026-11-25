@@ -25,13 +25,13 @@ Verificación del cierre:
 |---|---|---|
 | Monitor de conexiones por app (Network Activity) | ✔ | El JSON de `Connection` es idéntico al de Go |
 | Firewall por app: allow/block, acción por defecto, reglas por dominio, IP, país, ASN y puerto | ✔ | Motor de reglas con los tests de Go tal cual |
-| Intercepción en Windows (driver WFP, kext v1 y v2) | ✔ en código, **sin probar con el driver real** | Probado contra un kext falso por named pipe, con los bytes exactos del encoder Rust. El driver nunca se cargó |
+| Intercepción en Windows (driver WFP, kext v1 y v2) | ✔ v2 **probado con el driver real** (2026-11-24); v1 sólo contra el kext falso | `portmaster-kext.sys` v2.1.2 firmado, en una VM Hyper-V descartable (`odin/tests/winvm/run_test.ps1`), 9/9: el servicio del driver se crea, arranca, para y borra; la red anda antes, durante y después; el DNS se redirige al nameserver y netquery registra dominio y veredicto. Además, el kext falso por named pipe con los bytes exactos del encoder Rust |
 | Intercepción en Linux (nfqueue, conntrack, iptables, eBPF) | ✔ | Probado como root sólo dentro de network namespaces de WSL, con el e2e del firewall |
 | Filter lists (ads, trackers, malware) y listas propias | ✔ | El bloom filter es bit a bit el de Go |
 | Bloqueo de CNAMEs | ✔ | En Go no funcionaba (ver `BUGS.md`) |
 | DNS propio: resolver con UDP, TCP, DoT, DoH, mDNS y caché | ✔ | DoH va sobre HTTP/1.1, no h2 (ver §2) |
 | Nameserver local con atribución por proceso | ✔ | Además por TCP (ver §2) |
-| Monitor DNS del sistema (ETW en Windows, systemd-resolved en Linux) | ✔ | |
+| Monitor DNS del sistema (ETW en Windows, systemd-resolved en Linux) | ✔ | ETW sin probar en vivo: necesita `portmaster-core.dll` (DLL de integración firmada de Safing), que no estaba en el kit de la VM. Probado contra entradas falsas con la ABI de la DLL |
 | Network History y Bandwidth (netquery) | ✔ | Abre el `history.db` de Go |
 | Perfiles de apps, detección de procesos, íconos y nombres | ✔ | Windows por Win32 sin admin; Linux por `/proc` e íconos XDG |
 | Tags de proceso (svchost, Windows Store, Flatpak, Snap, AppImage, intérpretes) | ✔ | |
@@ -55,7 +55,7 @@ Verificación del cierre:
 | Modo servicio (SCM en Windows; señales en Linux) | ✔ | En Linux, `portmaster-core` real bajo systemd con el sandbox de la unit de Portmaster: arranque, reinicio por la API (exit 23), reinicio tras un crash, parada limpia. Sin intercepción, DNS en 15353, reglas del firewall del VPS sin cambios |
 | `recover-iptables` | ✔ | Probado en un namespace |
 | Herramientas: observation-hub, updatemgr, trafficgen, integrationtest, testsuite, rng/test | ✔ | |
-| winkext-test | Compilado, nunca ejecutado | Habla con el driver real. El kit para probarlo, junto con la intercepción, en una VM Hyper-V está listo en `odin/tests/winvm` (falta espacio en C:/D: y la ISO) |
+| winkext-test | Compilado, nunca ejecutado | Habla el protocolo v1 y el driver actual es v2. Se puede correr a mano en la VM (`in_vm.ps1 -WinkextTest`) |
 | macOS | Sólo compila | 14 `PORT-TODO(darwin)`: procesos, intercepción, notificaciones, keyring y algo de netenv/metrics |
 | UI desktop (Angular + Tauri), driver WFP (Rust), scripts | No (fuera de alcance) | No son Go; el driver y los scripts se usan tal cual |
 
