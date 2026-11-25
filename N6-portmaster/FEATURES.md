@@ -55,7 +55,7 @@ Verificación del cierre:
 | Self-check de compatibilidad | ✔ | |
 | Notificaciones de escritorio y prompts | ✔ | Windows contra el notifyd real de N4. Linux contra un daemon real (xfce4-notifyd en el VPS: dunst no está en Rocky 9): app_icon, image-path, image-data y la señal de cierre |
 | Updates automáticos con índices firmados | ✔ | Índices compatibles byte a byte con los de Go |
-| API REST y websocket para la UI | ✔ | La UI del desktop no se portó (fuera de alcance) |
+| API REST y websocket para la UI | ✔ | Usados por la UI nativa nueva (`odin/cmds/portmaster-ui`) |
 | Config global y por app, exportar configuración | ✔ | |
 | Sync de settings y perfiles | ✔ | |
 | Broadcasts de Safing | ✔ | |
@@ -67,7 +67,8 @@ Verificación del cierre:
 | Herramientas: observation-hub, updatemgr, trafficgen, integrationtest, testsuite, rng/test | ✔ | |
 | winkext-test | Compilado, nunca ejecutado | Habla el protocolo v1 y el driver actual es v2. Se puede correr a mano en la VM (`in_vm.ps1 -WinkextTest`) |
 | macOS | Sólo compila | 14 `PORT-TODO(darwin)`: procesos, intercepción, notificaciones, keyring y algo de netenv/metrics |
-| UI desktop (Angular + Tauri), driver WFP (Rust), scripts | No (fuera de alcance) | No son Go; el driver y los scripts se usan tal cual |
+| UI desktop (Angular + Tauri) | Reescrita nativa, versión 1 (2026-11-25) | `odin/cmds/portmaster-ui`: Odin sobre libnativegui (librería C del usuario, branch `feat/portmaster-ui`, extendida con eventos, recorte, formas AA, texto UTF-8, bandeja y los widgets `gw_ui`). Estado + bandeja + prompts, monitor de conexiones, apps y reglas. Probada contra un core en modo seguro: 11/11 escrituras (`--selftest`). Pendiente: Settings completos, mapa del SPN, íconos de apps, X11 sin compilar |
+| Driver WFP (Rust), scripts | No (se usan tal cual) | No son Go |
 
 ---
 
