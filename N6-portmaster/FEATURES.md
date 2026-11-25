@@ -4,7 +4,7 @@ Estado del port de Portmaster (Go) a Odin al cierre de la ronda unix
 (2026-11-24; fork `port/odin` en `5hif7y/portmaster`, hasta `8e05db6f`).
 
 **"Portado"** = el código existe y sus tests corren. Lo que nunca se probó en
-vivo (el driver real, el login con una cuenta de Safing) se marca aparte.
+vivo (el login con una cuenta de Safing) se marca aparte.
 
 Verificación del cierre:
 
@@ -16,6 +16,16 @@ Verificación del cierre:
 | `odin check -vet` para windows_amd64, linux_amd64 y darwin_arm64 | 0 fallas |
 | En vivo en Linux (VPS Rocky 9, 2026-11-24, `odin/tests/linux_live/run_vps.sh`) | 26/26: NetworkManager, notificaciones, gnome-keyring y `portmaster-core` bajo systemd |
 | En vivo contra el servidor de cuentas real de Safing, sin cuenta | health check y login inválido → 401, como Go |
+| En vivo en Windows (VM Hyper-V, 2026-11-24, `odin/tests/winvm/run_test.ps1`) | 10/10: driver WFP firmado de Safing v2.1.2 e integración ETW con `portmaster-core.dll` compilada por nosotros |
+
+### Plataformas (para usar varios dispositivos con un mismo SPN)
+
+| Plataforma | Estado | Qué hace falta |
+|---|---|---|
+| Linux | ✔ probado en vivo | Nada externo: intercepta con nfqueue/eBPF del kernel |
+| Windows | ✔ probado en vivo | Un driver WFP firmado. El de Safing es GPL y se usa tal cual; no depende de sus servidores. Driver propio: sólo documentado en `odin/tests/winvm/OWN-DRIVER.md` |
+| macOS | Compila (`darwin_arm64`), 14 `PORT-TODO(darwin)`, sin probar | Upstream nunca tuvo cliente de macOS: interceptar necesitaría una Network Extension, desarrollo nuevo |
+| Android | No existe | Upstream nunca tuvo cliente: sería una app nueva con `VpnService`, fuera del port |
 
 ---
 
@@ -31,7 +41,7 @@ Verificación del cierre:
 | Bloqueo de CNAMEs | ✔ | En Go no funcionaba (ver `BUGS.md`) |
 | DNS propio: resolver con UDP, TCP, DoT, DoH, mDNS y caché | ✔ | DoH va sobre HTTP/1.1, no h2 (ver §2) |
 | Nameserver local con atribución por proceso | ✔ | Además por TCP (ver §2) |
-| Monitor DNS del sistema (ETW en Windows, systemd-resolved en Linux) | ✔ | ETW sin probar en vivo: necesita `portmaster-core.dll` (DLL de integración firmada de Safing), que no estaba en el kit de la VM. Probado contra entradas falsas con la ABI de la DLL |
+| Monitor DNS del sistema (ETW en Windows, systemd-resolved en Linux) | ✔ | ETW probado en vivo en la VM con `portmaster-core.dll` compilada por nosotros desde `windows_core_dll/` (user-mode, no necesita firma): ve el dominio de self-check |
 | Network History y Bandwidth (netquery) | ✔ | Abre el `history.db` de Go |
 | Perfiles de apps, detección de procesos, íconos y nombres | ✔ | Windows por Win32 sin admin; Linux por `/proc` e íconos XDG |
 | Tags de proceso (svchost, Windows Store, Flatpak, Snap, AppImage, intérpretes) | ✔ | |
