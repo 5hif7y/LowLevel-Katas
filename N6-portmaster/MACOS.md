@@ -6,6 +6,11 @@ el port compila para `darwin_arm64` (14 `PORT-TODO(darwin)`), pero interceptar
 tráfico en macOS es **desarrollo nuevo**, no parte del port. Investigación web
 hecha por un agente; lo marcado "sin verificar" no se pudo confirmar en fuentes.
 
+**Decisión (2026-11-24): no se soporta macOS por ahora; quedan las bases.** En
+el fork, `odin/tests/macos/README.md` detalla qué falta por cada
+`PORT-TODO(darwin)`, el patrón para agregarlo y un workflow de GitHub Actions
+listo pero sin activar (`ci-macos.yml.example`).
+
 ## Resumen
 
 * **Compilar y correr tests**: runners macOS de GitHub Actions, nativos, en

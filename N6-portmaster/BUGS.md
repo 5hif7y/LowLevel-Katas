@@ -16,6 +16,11 @@ Tres grupos:
 
 ## 1. Odin dev-2026-10
 
+> **2026-11-24, el port pasó a Odin dev-2026-11 (`9a69916`).** 1.1 (ChaCha20
+> AVX2): el arreglo upstream ya viene incluido, pero el workaround se mantiene
+> hasta que termine la implementación SIMD de otra sesión. 1.2 (P-384
+> `fe_sqrt`): el archivo es idéntico, el bug sigue y el workaround también.
+
 Odin en `C:\Software\Odin-oct-2026`. Los dos tienen workaround en el fork y
 se reproducen sin una línea de Portmaster.
 
