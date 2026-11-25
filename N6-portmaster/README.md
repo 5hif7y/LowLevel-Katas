@@ -5,8 +5,9 @@ Kata en tres partes:
 1. **Portear** [Portmaster](https://github.com/safing/portmaster) (firewall de
    aplicaciones, ~117.000 líneas de Go) a **Odin**, por etapas. Los scripts
    auxiliares (`*.sh`, `*.py`, `*.ps1`) se quedan como están; el driver de
-   Windows (`windows_kext/`, Rust) y la UI (`desktop/`, Angular + Tauri) no son
-   Go y quedan fuera.
+   Windows (`windows_kext/`, Rust) no es Go y se usa tal cual. La UI
+   (`desktop/`, Angular + Tauri) tampoco es Go: en vez de portarla se
+   reescribió nativa en Odin (etapa "UI").
 2. **Auditar** las tres features "de pago" (Network History, Bandwidth, SPN):
    [AUDITORIA-features-de-pago.md](AUDITORIA-features-de-pago.md).
 3. Sobre el port, hacer que las notificaciones de Portmaster **no sean
@@ -36,6 +37,8 @@ Kata en tres partes:
 | Informes de cada tanda de porteo | [notas-agentes/](notas-agentes/) |
 | Bugs encontrados (Odin, Portmaster Go, el port) — local, sin reportar | [BUGS.md](BUGS.md) |
 | Features de Portmaster: portado o no, y lo que se hizo distinto | [FEATURES.md](FEATURES.md) |
+| Lo que falta (auditoría del 2026-11-25) | [PENDIENTES.md](PENDIENTES.md) |
+| UI de escritorio nativa | `odin/cmds/portmaster-ui` (Odin) sobre libnativegui (`DEV/gitclones/libnativegui`, branch `feat/portmaster-ui`, C) |
 
 ## Etapas
 
@@ -49,6 +52,7 @@ Kata en tres partes:
 | 5 | SPN (`spn/*`, `cmds/hub`, `cmds/spnclient`, hooks servicio↔SPN) + deudas de etapas anteriores | ✔ (fork `9e7028b4` … `e38559f6`, cierre `a56cdaa0`) — red self-hosted en loopback y en un VPS Linux; dos bugs de Odin y un use-after-free del iterador encontrados |
 | 6 | binarios: `portmaster-core` sobre la instancia completa, `cmdbase`, hub, observation-hub, updatemgr y herramientas | ✔ (fork `bf5268de`, `539c304c`, cierre `01ee4383`) — el binario real corre sin driver, sin admin y sin tocar el DNS del sistema; ECDSA para mTLS hecho después (contenedor CNG con nombre, borrado al destruir) |
 | unix | Linux: TLS/HTTP con OpenSSL, /proc, netlink, D-Bus (NetworkManager, keyring, notificaciones), intercepción nfqueue/conntrack/iptables/eBPF, monitor de systemd-resolved | ✔ (fork `32c3f2b3` … `2e018968`) — sin `PORT-TODO(unix)`; macOS compila, con 14 `PORT-TODO(darwin)` |
+| UI | UI de escritorio nativa (reemplaza Angular + Tauri): estado, bandeja, prompts, monitor, apps con reglas e íconos, SPN con mapa de hubs, Settings | ✔ (fork `02043ba5`, `a7bc69cd`, `26327cb7`) — `--selftest` 22/22 en Windows y en Linux/X11 (WSLg) |
 
 ## Tests
 

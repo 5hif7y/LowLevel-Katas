@@ -1,7 +1,9 @@
 # Features de Portmaster: qué está portado y qué se hizo distinto
 
 Estado del port de Portmaster (Go) a Odin al cierre de la ronda unix
-(2026-11-24; fork `port/odin` en `5hif7y/portmaster`, hasta `8e05db6f`).
+(2026-11-24; fork `port/odin` en `5hif7y/portmaster`, hasta `8e05db6f`), más
+la UI nativa y su versión Linux/X11 (2026-11-25, hasta `26327cb7`). Lo que
+falta está en [PENDIENTES.md](PENDIENTES.md).
 
 **"Portado"** = el código existe y sus tests corren. Lo que nunca se probó en
 vivo (el login con una cuenta de Safing) se marca aparte.
@@ -10,13 +12,15 @@ Verificación del cierre:
 
 | Dónde | Resultado |
 |---|---|
-| Windows, todos los paquetes con tests | 153/154 (el restante, `lib/dbus/dbustest`, es sólo Linux) |
-| Linux (WSL Arch), todos los paquetes con tests | 154/154 |
+| Windows, todos los paquetes con tests | 153/154 con Odin dev-2026-11 (2026-11-24; el restante, `lib/dbus/dbustest`, es sólo Linux) |
+| Linux (WSL Arch), todos los paquetes con tests | 154/154 con Odin dev-2026-10 (2026-11-24); no se volvió a correr con dev-2026-11 |
 | Linux, tests privilegiados de netfilter y eBPF en network namespaces | 6/6, sin reglas sobrantes; reglas del namespace principal sin cambios |
 | `odin check -vet` para windows_amd64, linux_amd64 y darwin_arm64 | 0 fallas |
 | En vivo en Linux (VPS Rocky 9, 2026-11-24, `odin/tests/linux_live/run_vps.sh`) | 26/26: NetworkManager, notificaciones, gnome-keyring y `portmaster-core` bajo systemd |
 | En vivo contra el servidor de cuentas real de Safing, sin cuenta | health check y login inválido → 401, como Go |
 | En vivo en Windows (VM Hyper-V, 2026-11-24, `odin/tests/winvm/run_test.ps1`) | 10/10: driver WFP firmado de Safing v2.1.2 e integración ETW con `portmaster-core.dll` compilada por nosotros |
+| UI nativa, `--selftest` contra un core de prueba (2026-11-25) | 22/22 en Windows y en Linux (WSLg, `build_linux.sh --core --test`) |
+| libnativegui (branch `feat/portmaster-ui`), tests propios | Windows: `gw_ext_test` 46/46, `gw_ui_test` 33/33; X11 (WSLg): 53/53 y 33/33 |
 
 ### Plataformas (para usar varios dispositivos con un mismo SPN)
 
@@ -67,7 +71,7 @@ Verificación del cierre:
 | Herramientas: observation-hub, updatemgr, trafficgen, integrationtest, testsuite, rng/test | ✔ | |
 | winkext-test | Compilado, nunca ejecutado | Habla el protocolo v1 y el driver actual es v2. Se puede correr a mano en la VM (`in_vm.ps1 -WinkextTest`) |
 | macOS | Sólo compila | 14 `PORT-TODO(darwin)`: procesos, intercepción, notificaciones, keyring y algo de netenv/metrics |
-| UI desktop (Angular + Tauri) | Reescrita nativa (2026-11-25) | `odin/cmds/portmaster-ui`: Odin sobre libnativegui (librería C del usuario, branch `feat/portmaster-ui`, extendida con eventos, recorte, formas AA, texto UTF-8 con ajuste de línea, bandeja y los widgets `gw_ui`). Estado + bandeja + prompts, monitor de conexiones, apps con reglas e íconos, SPN (estado, interruptores, mapa de hubs) y Settings (todas las opciones, por nivel de experiencia, búsqueda, reset). Probada contra un core en modo seguro: 22/22 (`--selftest`). Pendiente: X11 sin compilar, mapa con hubs reales sin probar en vivo, sin contorno de continentes |
+| UI desktop (Angular + Tauri) | Reescrita nativa (2026-11-25) | `odin/cmds/portmaster-ui`: Odin sobre libnativegui (librería C del usuario, branch `feat/portmaster-ui`, extendida con eventos, recorte, formas AA, texto UTF-8 con ajuste de línea, bandeja y los widgets `gw_ui`). Estado + bandeja + prompts, monitor de conexiones, apps con reglas e íconos, SPN (estado, interruptores, mapa de hubs) y Settings (todas las opciones, por nivel de experiencia, búsqueda, reset). Probada contra un core en modo seguro: 22/22 (`--selftest`) en Windows y en Linux/X11 (WSLg). En X11 todavía sin bandeja, portapapeles ni menú contextual. Pendiente: mapa con hubs reales sin probar en vivo, sin contorno de continentes, ventana de prompt separada |
 | Driver WFP (Rust), scripts | No (se usan tal cual) | No son Go |
 
 ---
@@ -89,7 +93,7 @@ Verificación del cierre:
 |---|---|---|
 | Base de datos | badger y bbolt | sqlite, más un importador de sólo lectura de bases bbolt de Go |
 | TLS | `crypto/tls` | SChannel en Windows, OpenSSL 3 en Linux |
-| Certificados de cliente (mTLS) | RSA, ECDSA, Ed25519 | RSA y ECDSA en Windows y Linux; Ed25519 sólo en Linux (en Windows, aceptado: ECDSA alcanza). En Windows, ECDSA vive en un contenedor CNG con nombre único del almacén del usuario, que se borra al destruir el certificado (y se barre si el proceso muere): SChannel firma dentro de LSASS y no puede usar una clave efímera. Ed25519 no se puede en Windows: CNG rechaza la clave (`NTE_BAD_ALGID`, medido en Windows 10 22H2). **Pendiente**, para otra sesión: Ed25519 en Windows usando OpenSSL en vez de SChannel para esas conexiones (`PORT-TODO(ed25519-windows)`; un proveedor de claves propio no sirve porque SChannel no negocia ed25519) |
+| Certificados de cliente (mTLS) | RSA, ECDSA, Ed25519 | RSA y ECDSA en Windows y Linux; Ed25519 sólo en Linux (en Windows, aceptado: ECDSA alcanza). En Windows, ECDSA vive en un contenedor CNG con nombre único del almacén del usuario, que se borra al destruir el certificado (y se barre si el proceso muere): SChannel firma dentro de LSASS y no puede usar una clave efímera. Ed25519 no se puede en Windows: CNG rechaza la clave (`NTE_BAD_ALGID`, medido en Windows 10 22H2). **Aceptado** (2026-11-25: "ECDSA es suficiente"), `ACCEPTED(ed25519-windows)`; el camino, si algún día hace falta, es OpenSSL en vez de SChannel para esas conexiones (un proveedor de claves propio no sirve porque SChannel no negocia ed25519) |
 | Certificados Ed25519 del servidor remoto | Los acepta | En Windows, SChannel no negocia Ed25519: falla cualquier TLS (DoT/DoH, cliente HTTP, `patrol`, proxy de split tunneling) contra un servidor con certificado Ed25519. Las CAs públicas sólo emiten RSA/ECDSA, así que sólo afecta a servidores propios con certificado Ed25519 hecho a mano (usar ECDSA). Deducido de SChannel, sin probar en vivo. El Ed25519 de jess (identidades del SPN, firmas de updates) no pasa por TLS y anda en Windows |
 | Cliente HTTP | `net/http`, con h2 | WinHTTP en Windows, HTTP/1.1 propio en Linux. Sin HTTP/2, así que DoH usa HTTP/1.1 con keep-alive |
 | Nameserver | Sólo UDP | UDP y TCP |
