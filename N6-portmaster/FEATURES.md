@@ -67,7 +67,7 @@ Verificación del cierre:
 | Herramientas: observation-hub, updatemgr, trafficgen, integrationtest, testsuite, rng/test | ✔ | |
 | winkext-test | Compilado, nunca ejecutado | Habla el protocolo v1 y el driver actual es v2. Se puede correr a mano en la VM (`in_vm.ps1 -WinkextTest`) |
 | macOS | Sólo compila | 14 `PORT-TODO(darwin)`: procesos, intercepción, notificaciones, keyring y algo de netenv/metrics |
-| UI desktop (Angular + Tauri) | Reescrita nativa, versión 1 (2026-11-25) | `odin/cmds/portmaster-ui`: Odin sobre libnativegui (librería C del usuario, branch `feat/portmaster-ui`, extendida con eventos, recorte, formas AA, texto UTF-8, bandeja y los widgets `gw_ui`). Estado + bandeja + prompts, monitor de conexiones, apps y reglas. Probada contra un core en modo seguro: 11/11 escrituras (`--selftest`). Pendiente: Settings completos, mapa del SPN, íconos de apps, X11 sin compilar |
+| UI desktop (Angular + Tauri) | Reescrita nativa (2026-11-25) | `odin/cmds/portmaster-ui`: Odin sobre libnativegui (librería C del usuario, branch `feat/portmaster-ui`, extendida con eventos, recorte, formas AA, texto UTF-8 con ajuste de línea, bandeja y los widgets `gw_ui`). Estado + bandeja + prompts, monitor de conexiones, apps con reglas e íconos, SPN (estado, interruptores, mapa de hubs) y Settings (todas las opciones, por nivel de experiencia, búsqueda, reset). Probada contra un core en modo seguro: 22/22 (`--selftest`). Pendiente: X11 sin compilar, mapa con hubs reales sin probar en vivo, sin contorno de continentes |
 | Driver WFP (Rust), scripts | No (se usan tal cual) | No son Go |
 
 ---
