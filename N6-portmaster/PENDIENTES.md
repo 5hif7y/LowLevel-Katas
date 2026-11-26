@@ -1,6 +1,6 @@
 # Pendientes del port de Portmaster
 
-Auditoría del 2026-11-25, cerrada el mismo día. Fuentes: todos los pedidos
+Auditoría del 2026-11-25, cerrada el mismo día; regenerada el 2026-11-26. Fuentes: todos los pedidos
 de la sesión (desde el 2026-11-19), todo lo que quedó sin hacer o sin
 verificar en los informes, y el estado real de los tres repos (fork
 `port/odin`, este kata, libnativegui `feat/portmaster-ui`).
@@ -10,7 +10,14 @@ listas: lo que espera al usuario y lo **demorado a propósito**.
 
 ## Esperan al usuario
 
-- [ ] **Protección real: probar en la VM.** PowerShell como admin en el host:
+- [ ] **Protección real: probar en la VM.** La VM se sacó de Hyper-V, pero su
+  disco sigue en `D:\VMs\pm-kext\pm-kext.vhdx` (Windows instalado; las
+  credenciales en `D:\VMs\pm-kext-unattend\credentials.txt`). Primero
+  registrarla de nuevo, PowerShell como admin en el host:
+  ```
+  powershell -ExecutionPolicy Bypass -File C:\Users\Shifty\DEV\gitclones\portmaster\odin\tests\winvm\reattach_vm.ps1 -Start
+  ```
+  Un minuto después (que arranque Windows):
   ```
   powershell -ExecutionPolicy Bypass -File C:\Users\Shifty\DEV\pm-protect\vm_test.ps1 -Bundle C:\Users\Shifty\DEV\pm-protect -CredentialFile D:\VMs\pm-kext-unattend\credentials.txt
   ```
@@ -19,7 +26,8 @@ listas: lo que espera al usuario y lo **demorado a propósito**.
   dice qué proceso hizo la conexión) y la desinstalación. El resultado queda
   en `D:\pm-kit-results\protection.log`.
 - [ ] **Protección real: instalar en la máquina.** Si la VM dio bien,
-  PowerShell como admin, en `C:\Users\Shifty\DEV\pm-protect`:
+  PowerShell como admin, **parado en** `C:\Users\Shifty\DEV\pm-protect`
+  (`cd` primero: abre en `system32`):
   `powershell -ExecutionPolicy Bypass -File .\install.ps1`. Entra en período
   de prueba de 30 min: sin `confirm.ps1` se desinstala solo. Pasos y
   detalles: `packaging/windows-odin/README.md` del fork.
@@ -35,10 +43,12 @@ No se hacen hasta que el usuario lo pida.
 - **ChaCha20 SIMD.** `jess` sigue con `.Simd128`
   (`gostdlib.CHACHA20_IMPL`). Se saca el workaround e integra la
   implementación SIMD del usuario cuando su otra sesión avise.
-- **Borrar la VM `pm-kext`** y `D:\VMs\pm-kext`, `D:\VMs\pm-kext-unattend`,
-  `D:\pm-kit`, `D:\pm-kit-dl`, `D:\pm-kit-results`. Hacen falta para la
-  prueba de la VM de arriba, y `build_bundle.sh` toma el driver de
-  `D:\pm-kit`.
+- **Borrar los restos de la VM**: la VM ya no está en Hyper-V, pero quedan
+  `D:\VMs\pm-kext` (el disco, 28 GB), `D:\VMs\pm-kext-unattend`,
+  `D:\pm-kit`, `D:\pm-kit-dl` y `D:\pm-kit-results`. Hacen falta para la
+  prueba de la VM de arriba (`reattach_vm.ps1` usa el disco) y
+  `build_bundle.sh` toma el driver de `D:\pm-kit`. Después de la prueba:
+  `Remove-VM pm-kext` y borrar esas carpetas.
 - **Reportes de bugs** a Safing y a Odin, sin enviar. Borradores en
   `informes-locales/` (excluido de git):
   - a Safing: las dos inyecciones SQL de netquery, los bugs de Go de
