@@ -2,8 +2,10 @@
 
 Estado del port de Portmaster (Go) a Odin al cierre de la ronda unix
 (2026-11-24; fork `port/odin` en `5hif7y/portmaster`, hasta `8e05db6f`), más
-la UI nativa, su versión Linux/X11 y el barrido de Linux con dev-2026-11 (2026-11-25, hasta `e2e03c12`). Lo que
-falta está en [PENDIENTES.md](PENDIENTES.md).
+la UI nativa, su versión Linux/X11, el barrido de Linux con dev-2026-11, los
+vectores contra Go real, la protección real en Windows (scripts) y los tests
+intermitentes (2026-11-25, hasta `f0c660cb`). Lo que espera al usuario y lo
+demorado a propósito está en [PENDIENTES.md](PENDIENTES.md).
 
 **"Portado"** = el código existe y sus tests corren. Lo que nunca se probó en
 vivo (el login con una cuenta de Safing) se marca aparte.
@@ -13,21 +15,22 @@ Verificación del cierre:
 | Dónde | Resultado |
 |---|---|
 | Windows, todos los paquetes con tests | 153/154 con Odin dev-2026-11 (2026-11-24; el restante, `lib/dbus/dbustest`, es sólo Linux) |
-| Linux (WSL Arch), todos los paquetes con tests | 155/155 con Odin dev-2026-11 (2026-11-25, `odin/tests/linux_cross_sweep.sh`: compilado en Windows, linkeado y corrido en WSL); `spn/crew` y `spn/patrol` fallan por tiempos con 3 paquetes en paralelo y pasan solos |
+| Linux (WSL Arch), todos los paquetes con tests | 155/155 con Odin dev-2026-11 (2026-11-25, `odin/tests/linux_cross_sweep.sh`: compilado en Windows, linkeado y corrido en WSL); los tests intermitentes (resolver, netquery, docks, mgr, core_e2e, crew, patrol) pasan bajo carga desde `f0c660cb` |
 | Linux, tests privilegiados de netfilter y eBPF en network namespaces | 6/6, sin reglas sobrantes; reglas del namespace principal sin cambios |
 | `odin check -vet` para windows_amd64, linux_amd64 y darwin_arm64 | 0 fallas |
 | En vivo en Linux (VPS Rocky 9, 2026-11-24, `odin/tests/linux_live/run_vps.sh`) | 26/26: NetworkManager, notificaciones, gnome-keyring y `portmaster-core` bajo systemd |
 | En vivo contra el servidor de cuentas real de Safing, sin cuenta | health check y login inválido → 401, como Go |
 | En vivo en Windows (VM Hyper-V, 2026-11-24, `odin/tests/winvm/run_test.ps1`) | 10/10: driver WFP firmado de Safing v2.1.2 e integración ETW con `portmaster-core.dll` compilada por nosotros |
-| UI nativa, `--selftest` contra un core de prueba (2026-11-25) | 22/22 en Windows y en Linux (WSLg, `build_linux.sh --core --test`) |
-| libnativegui (branch `feat/portmaster-ui`), tests propios | Windows: `gw_ext_test` 46/46, `gw_ui_test` 33/33; X11 (WSLg): 53/53 y 33/33 |
+| Vectores de prueba contra Go 1.27.4 real (2026-11-25, `odin/tests/govectors`) | dsd, hub, terminal, docks, navigator, pblind y tokens idénticos; bbolt importa una base escrita por Go; el DOT del navigator se corrigió |
+| UI nativa, `--selftest` contra un core de prueba (2026-11-25) | 26/26 en Windows, con y sin API key (22/22 en Linux, WSLg, antes de la ventana de prompt y los ajustes por app) |
+| libnativegui (branch `feat/portmaster-ui`), tests propios | Windows: `gw_ext_test` 56/56, `gw_ui_test` 33/33; X11 (WSLg): `gw_ext_test` 70/70, `gw_ui_test` 33/33, `gw_dialog_test` 21/21; CMake en Linux compila |
 
 ### Plataformas (para usar varios dispositivos con un mismo SPN)
 
 | Plataforma | Estado | Qué hace falta |
 |---|---|---|
 | Linux | ✔ probado en vivo | Nada externo: intercepta con nfqueue/eBPF del kernel |
-| Windows | ✔ probado en vivo | Un driver WFP firmado. El de Safing es GPL y se usa tal cual; no depende de sus servidores. Driver propio: sólo documentado en `odin/tests/winvm/OWN-DRIVER.md` |
+| Windows | ✔ probado en vivo | Un driver WFP firmado. El de Safing es GPL y se usa tal cual; no depende de sus servidores. Driver propio: sólo documentado en `odin/tests/winvm/OWN-DRIVER.md`. Instalación como protección real: `packaging/windows-odin` (bloquear por defecto con prompt y lista blanca, período de prueba que se desinstala solo); falta que el usuario la corra en la VM y en su máquina |
 | macOS | Compila (`darwin_arm64`), 14 `PORT-TODO(darwin)`, sin probar | Upstream nunca tuvo cliente de macOS: interceptar necesitaría una Network Extension, desarrollo nuevo |
 | Android | No existe | Upstream nunca tuvo cliente: sería una app nueva con `VpnService`, fuera del port |
 
@@ -71,7 +74,7 @@ Verificación del cierre:
 | Herramientas: observation-hub, updatemgr, trafficgen, integrationtest, testsuite, rng/test | ✔ | |
 | winkext-test | Compilado, nunca ejecutado | Habla el protocolo v1 y el driver actual es v2. Se puede correr a mano en la VM (`in_vm.ps1 -WinkextTest`) |
 | macOS | Sólo compila | 14 `PORT-TODO(darwin)`: procesos, intercepción, notificaciones, keyring y algo de netenv/metrics |
-| UI desktop (Angular + Tauri) | Reescrita nativa (2026-11-25) | `odin/cmds/portmaster-ui`: Odin sobre libnativegui (librería C del usuario, branch `feat/portmaster-ui`, extendida con eventos, recorte, formas AA, texto UTF-8 con ajuste de línea, bandeja y los widgets `gw_ui`). Estado + bandeja + prompts, monitor de conexiones, apps con reglas e íconos, SPN (estado, interruptores, mapa de hubs) y Settings (todas las opciones, por nivel de experiencia, búsqueda, reset). Probada contra un core en modo seguro: 22/22 (`--selftest`) en Windows y en Linux/X11 (WSLg). En X11 todavía sin bandeja, portapapeles ni menú contextual. Pendiente: mapa con hubs reales sin probar en vivo, sin contorno de continentes, ventana de prompt separada |
+| UI desktop (Angular + Tauri) | Reescrita nativa (2026-11-25) | `odin/cmds/portmaster-ui`: Odin sobre libnativegui (librería C del usuario, branch `feat/portmaster-ui`, extendida con eventos, recorte, formas AA, texto UTF-8 con ajuste de línea, bandeja y los widgets `gw_ui`). Estado + bandeja + prompts, monitor de conexiones, apps con reglas e íconos, SPN (estado, interruptores, mapa de hubs) y Settings (todas las opciones, por nivel de experiencia, búsqueda, reset). Ventana de prompt separada (con la ruta del ejecutable), ajustes por app, API key, contorno de Natural Earth en el mapa, probado en vivo con un hub real en el VPS. Probada contra un core en modo seguro: 26/26 (`--selftest`). En X11: bandeja XEmbed, portapapeles, menú contextual, XIM y diálogos propios |
 | Driver WFP (Rust), scripts | No (se usan tal cual) | No son Go |
 
 ---
